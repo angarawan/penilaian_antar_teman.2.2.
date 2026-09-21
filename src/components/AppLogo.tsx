@@ -1,0 +1,119 @@
+import React, { useEffect, useState } from 'react';
+import { DatabaseService, subscribeToDataChanges } from '../services/db';
+import { AppConfig } from '../types';
+import { INITIAL_APP_CONFIG } from '../services/seedData';
+import { Activity, Trophy, Medal, Flame, Dribbble, Dumbbell } from 'lucide-react';
+
+interface AppLogoProps {
+  className?: string;
+  size?: 'sm' | 'md' | 'lg' | 'xl';
+  showText?: boolean;
+  textSize?: 'sm' | 'md' | 'lg';
+  whiteText?: boolean;
+}
+
+export const AppLogo: React.FC<AppLogoProps> = ({
+  className = '',
+  size = 'md',
+  showText = false,
+  textSize = 'md',
+  whiteText = false
+}) => {
+  const [config, setConfig] = useState<AppConfig>(INITIAL_APP_CONFIG);
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchConfig = async () => {
+      const data = await DatabaseService.getAppConfig();
+      if (mounted) setConfig(data);
+    };
+    fetchConfig();
+    const unsub = subscribeToDataChanges(fetchConfig);
+    return () => {
+      mounted = false;
+      unsub();
+    };
+  }, []);
+
+  const sizeClasses = {
+    sm: 'w-8 h-8 rounded-lg',
+    md: 'w-10 h-10 sm:w-11 sm:h-11 rounded-xl',
+    lg: 'w-12 h-12 sm:w-14 sm:h-14 rounded-2xl',
+    xl: 'w-16 h-16 sm:w-20 sm:h-20 rounded-3xl'
+  }[size];
+
+  const iconSizes = {
+    sm: 'w-4 h-4',
+    md: 'w-5 h-5 sm:w-6 sm:h-6',
+    lg: 'w-7 h-7 sm:w-8 sm:h-8',
+    xl: 'w-9 h-9 sm:w-11 sm:h-11'
+  }[size];
+
+  const renderIcon = () => {
+    switch (config.logoIconPreset) {
+      case 'trophy':
+        return <Trophy className={iconSizes} />;
+      case 'medal':
+        return <Medal className={iconSizes} />;
+      case 'flame':
+        return <Flame className={iconSizes} />;
+      case 'basketball':
+        return <Dribbble className={iconSizes} />;
+      case 'activity':
+      default:
+        return <Activity className={iconSizes} />;
+    }
+  };
+
+  return (
+    <div className={`flex items-center gap-3 ${className}`}>
+      <div
+        className={`${sizeClasses} overflow-hidden shrink-0 flex items-center justify-center font-bold transition-transform shadow-md ${
+          config.logoUrl
+            ? 'bg-white border border-slate-200 shadow-slate-200/60 p-1'
+            : 'bg-gradient-to-tr from-indigo-600 via-indigo-700 to-blue-600 text-white shadow-indigo-600/25'
+        }`}
+      >
+        {config.logoUrl ? (
+          <img
+            src={config.logoUrl}
+            alt={config.appName || 'Logo Sekolah'}
+            className="w-full h-full object-contain rounded-lg"
+            referrerPolicy="no-referrer"
+            onError={(e) => {
+              // fallback if image fails to load
+              (e.target as HTMLElement).style.display = 'none';
+            }}
+          />
+        ) : (
+          renderIcon()
+        )}
+      </div>
+
+      {showText && (
+        <div className="min-w-0">
+          <h1
+            className={`font-black tracking-tight leading-tight font-heading truncate ${
+              whiteText ? 'text-white' : 'text-slate-900'
+            } ${
+              textSize === 'sm'
+                ? 'text-sm sm:text-base'
+                : textSize === 'lg'
+                ? 'text-lg sm:text-2xl'
+                : 'text-base sm:text-lg md:text-xl'
+            }`}
+          >
+            {config.appName || 'PENILAIAN ANTAR TEMAN PJOK'}
+          </h1>
+          <p
+            className={`text-xs truncate font-medium ${
+              whiteText ? 'text-indigo-200' : 'text-indigo-600'
+            }`}
+          >
+            {config.motto || 'Sportif, Jujur, dan Menghargai Gerak Teman'}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};

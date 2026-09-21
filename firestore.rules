@@ -1,0 +1,90 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isTeacher() {
+      return isSignedIn() && (
+        (exists(/databases/$(database)/documents/pengguna/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/pengguna/$(request.auth.uid)).data.role == 'guru') ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'guru') ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'agusaryadevaudayana19@gmail.com'
+      );
+    }
+
+    function isUser(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Pengguna collection (primary users collection for guru & murid)
+    match /pengguna/{userId} {
+      allow read: if true;
+      allow write: if isSignedIn() && (isTeacher() || isUser(userId));
+    }
+
+    // Users collection (backwards compatibility)
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if isSignedIn() && (isTeacher() || isUser(userId));
+    }
+
+    // Classes collection
+    match /classes/{classId} {
+      allow read: if isSignedIn();
+      allow write: if isTeacher();
+    }
+
+    // Rubric Indicators collection
+    match /indicators/{indicatorId} {
+      allow read: if isSignedIn();
+      allow write: if isTeacher();
+    }
+
+    // Assessment Tasks collection
+    match /tasks/{taskId} {
+      allow read: if isSignedIn();
+      allow write: if isTeacher();
+    }
+
+    // Peer Assessments collection
+    match /assessments/{assessmentId} {
+      // Read allowed if teacher or if user is assessor or recipient
+      allow read: if isSignedIn() && (
+        isTeacher() ||
+        resource.data.assessorId == request.auth.uid ||
+        resource.data.targetId == request.auth.uid
+      );
+
+      // Murid can create assessments for their peers (not self)
+      allow create: if isSignedIn() && (
+        isTeacher() ||
+        (
+          request.resource.data.assessorId == request.auth.uid &&
+          request.resource.data.targetId != request.auth.uid
+        )
+      );
+
+      // Murid can update only their own assessment if teacher permits, or teacher can update
+      allow update: if isSignedIn() && (
+        isTeacher() ||
+        (
+          resource.data.assessorId == request.auth.uid &&
+          request.resource.data.assessorId == request.auth.uid
+        )
+      );
+
+      allow delete: if isTeacher();
+    }
+  }
+}
