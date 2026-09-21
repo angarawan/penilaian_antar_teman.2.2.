@@ -199,15 +199,18 @@ export const StudentQuiz: React.FC = () => {
           {/* Helpful prompt for students if external form blocks embedding */}
           <div className="bg-teal-950/70 border-b border-teal-800/60 px-4 py-2 text-[11px] text-teal-300 flex items-center justify-between gap-2">
             <span>
-              💡 Kuis langsung terbuka di bawah. Jika kuis Google Form meminta login akun atau tampilan tidak muncul, klik tombol <strong>"Buka di Tab Baru"</strong> di pojok kanan atas.
+              {activeQuizToTake.linkUrl.includes('script.google.com')
+                ? '💡 Kuis Google Apps Script: Jika tampilan di bawah tertahan oleh Google, klik tombol "Buka Web App" di samping.'
+                : '💡 Kuis terbuka di bawah. Jika form meminta verifikasi login atau tampilan tidak muncul, klik "Buka Langsung".'}
             </span>
             <a
               href={activeQuizToTake.linkUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-white underline font-bold whitespace-nowrap"
+              className="px-3 py-1 rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-bold whitespace-nowrap text-xs flex items-center gap-1 shadow-xs cursor-pointer"
             >
-              Buka Langsung
+              <span>{activeQuizToTake.linkUrl.includes('script.google.com') ? 'Buka Web App' : 'Buka Langsung'}</span>
+              <ExternalLink className="w-3 h-3" />
             </a>
           </div>
 

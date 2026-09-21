@@ -47,6 +47,7 @@ export const QuizManagement: React.FC = () => {
   const [durasiMenit, setDurasiMenit] = useState<number>(30);
   const [batasWaktu, setBatasWaktu] = useState('');
   const [instruksi, setInstruksi] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const loadData = async () => {
     const [qList, cList, sList] = await Promise.all([
@@ -116,34 +117,64 @@ export const QuizManagement: React.FC = () => {
       return;
     }
 
-    let formattedUrl = linkUrl.trim();
-    if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
-      formattedUrl = 'https://' + formattedUrl;
+    // Pembersihan cerdas URL kuis (mendukung Google Apps Script, Google Form, embed iframe code, dsb.)
+    let cleanUrl = linkUrl.trim();
+
+    // 1. Jika guru tidak sengaja menempelkan cuplikan embed <iframe src="...">
+    const iframeMatch = cleanUrl.match(/src=["'](https?:\/\/[^"']+)["']/i);
+    if (iframeMatch && iframeMatch[1]) {
+      cleanUrl = iframeMatch[1];
+    } else {
+      // Hilangkan tanda kutip atau kurung sudut jika ada
+      cleanUrl = cleanUrl.replace(/^["'`<]+|["'`>]+$/g, '').trim();
     }
 
-    const quizData: QuizItem = {
-      id: editingQuiz ? editingQuiz.id : `quiz-${Date.now()}`,
-      judul: judul.trim(),
-      materi: materi.trim() || 'Pendidikan Jasmani, Olahraga, dan Kesehatan',
-      kelas,
-      linkUrl: formattedUrl,
-      status,
-      kodeKunci: kodeKunci.trim() ? kodeKunci.trim().toUpperCase() : undefined,
-      durasiMenit: Number(durasiMenit) || 30,
-      batasWaktu: batasWaktu.trim() || undefined,
-      instruksi: instruksi.trim(),
-      createdAt: editingQuiz ? editingQuiz.createdAt : new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
+    // 2. Pastikan diawali https:// atau http://
+    if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
+      cleanUrl = 'https://' + cleanUrl;
+    }
 
-    await DatabaseService.saveQuiz(quizData);
-    setIsModalOpen(false);
-    showNotification(
-      editingQuiz
-        ? 'Perubahan kuis berhasil disimpan!'
-        : 'Link kuis baru berhasil dibuat dan disimpan!'
-    );
-    loadData();
+    // 3. Deteksi tautan Google Apps Script berakhiran /dev
+    if (cleanUrl.includes('script.google.com') && cleanUrl.endsWith('/dev')) {
+      const wantReplace = confirm(
+        'Perhatian Tautan Google Apps Script:\nTautan Anda berakhiran "/dev" (mode pengembangan guru), sehingga murid tidak akan bisa membukanya.\n\nApakah Anda ingin otomatis mengubahnya menjadi "/exec" (versi publik Web App untuk murid)?'
+      );
+      if (wantReplace) {
+        cleanUrl = cleanUrl.replace(/\/dev$/, '/exec');
+      }
+    }
+
+    setIsSaving(true);
+    try {
+      const quizData: QuizItem = {
+        id: editingQuiz ? editingQuiz.id : `quiz-${Date.now()}`,
+        judul: judul.trim(),
+        materi: materi.trim() || 'Pendidikan Jasmani, Olahraga, dan Kesehatan',
+        kelas,
+        linkUrl: cleanUrl,
+        status,
+        kodeKunci: kodeKunci.trim() ? kodeKunci.trim().toUpperCase() : undefined,
+        durasiMenit: Number(durasiMenit) || 30,
+        batasWaktu: batasWaktu.trim() || undefined,
+        instruksi: instruksi.trim(),
+        createdAt: editingQuiz ? editingQuiz.createdAt : new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      await DatabaseService.saveQuiz(quizData);
+      setIsModalOpen(false);
+      showNotification(
+        editingQuiz
+          ? 'Perubahan kuis berhasil disimpan!'
+          : 'Link kuis baru berhasil dibuat dan disimpan!'
+      );
+      loadData();
+    } catch (err: any) {
+      console.error('Gagal menyimpan kuis:', err);
+      alert('Terjadi kesalahan saat menyimpan kuis: ' + (err.message || 'Silakan coba lagi.'));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDeleteQuiz = async (id: string, title: string) => {
@@ -554,15 +585,29 @@ export const QuizManagement: React.FC = () => {
                   <input
                     type="text"
                     required
-                    placeholder="https://forms.gle/... atau https://quizizz.com/..."
+                    placeholder="Contoh: https://script.google.com/macros/s/.../exec atau Google Form"
                     value={linkUrl}
                     onChange={(e) => setLinkUrl(e.target.value)}
                     className="w-full px-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-mono focus:ring-2 focus:ring-teal-500 focus:outline-hidden text-slate-900 dark:text-white"
                   />
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                  Mendukung Google Form, Quizizz, Kahoot, Wordwall, CBT sekolah, Quizlet, atau link soal lainnya.
+                  Mendukung Google Apps Script Web App, Google Form, Quizizz, Wordwall, CBT sekolah, Kahoot, atau link soal lainnya.
                 </p>
+
+                {/* Info khusus bila memasukkan Apps Script */}
+                {linkUrl.includes('script.google.com') && (
+                  <div className="mt-2.5 p-3 rounded-2xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-xs text-blue-900 dark:text-blue-200 space-y-1">
+                    <p className="font-bold flex items-center gap-1.5">
+                      <span>💡 Tips Google Apps Script untuk Guru:</span>
+                    </p>
+                    <ul className="list-disc pl-4 space-y-0.5 text-[11px] text-blue-800 dark:text-blue-300">
+                      <li>Gunakan tautan Web App yang berakhiran <strong>/exec</strong> (bukan /dev).</li>
+                      <li>Di menu Deploy Apps Script, pastikan <em>Who has access</em> disetel ke <strong>"Anyone" (Siapa saja)</strong> agar murid bisa mengakses kuis.</li>
+                      <li>Jika script menghasilkan HTML, pastikan menyertakan <code>.setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)</code> agar bisa muncul langsung di layar aplikasi murid.</li>
+                    </ul>
+                  </div>
+                )}
               </div>
 
               {/* Kunci Akses & Status Kuis (Fitur Utama dari Permintaan Pengguna) */}
@@ -659,15 +704,24 @@ export const QuizManagement: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-5 py-2.5 rounded-2xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  disabled={isSaving}
+                  className="px-5 py-2.5 rounded-2xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer disabled:opacity-50"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-2xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-md shadow-teal-600/20 transition-all cursor-pointer"
+                  disabled={isSaving}
+                  className="px-6 py-2.5 rounded-2xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-md shadow-teal-600/20 transition-all cursor-pointer flex items-center gap-2 disabled:opacity-75"
                 >
-                  {editingQuiz ? 'Simpan Perubahan' : 'Simpan & Pasang Kuis'}
+                  {isSaving ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Menyimpan...</span>
+                    </>
+                  ) : (
+                    <span>{editingQuiz ? 'Simpan Perubahan' : 'Simpan & Pasang Kuis'}</span>
+                  )}
                 </button>
               </div>
             </form>

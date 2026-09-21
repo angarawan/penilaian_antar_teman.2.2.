@@ -275,7 +275,7 @@ export const StudentView: React.FC<StudentViewProps> = ({
           }`}
         >
           <HelpCircle className={`w-5 h-5 ${currentTab === 'quizzes' ? 'stroke-[2.5]' : ''}`} />
-          <span className="text-[10px] mt-0.5">Kuis</span>
+          <span className="text-[10px] mt-0.5">Quis PJOK</span>
         </button>
 
         <button

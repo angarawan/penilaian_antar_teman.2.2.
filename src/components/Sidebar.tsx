@@ -88,7 +88,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {/* Mobile header with close button */}
           <div className="flex items-center justify-between pb-3 mb-2 border-b border-slate-100 dark:border-slate-800 lg:hidden">
             <span className="font-extrabold text-sm text-slate-800 dark:text-white font-heading">
-              MENU GURU PJOK
+              MENU UTAMA
             </span>
             <button
               onClick={onClose}

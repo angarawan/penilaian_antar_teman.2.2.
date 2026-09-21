@@ -53,9 +53,9 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
     },
     {
       id: 'quizzes',
-      label: 'Kuis PJOK (Link & Kunci)',
+      label: 'Quis PJOK',
       icon: HelpCircle,
-      description: 'Soal & ujian guru'
+      description: 'Latihan & ujian guru'
     },
     {
       id: 'history',

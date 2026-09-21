@@ -768,9 +768,16 @@ export const DatabaseService = {
   },
 
   async saveQuiz(quiz: QuizItem): Promise<void> {
+    const cleanQuiz: any = {};
+    for (const [key, value] of Object.entries(quiz)) {
+      if (value !== undefined) {
+        cleanQuiz[key] = value;
+      }
+    }
+
     if (isFirebaseConfigured() && db) {
       try {
-        await setDoc(doc(db, 'quizzes', quiz.id), quiz, { merge: true });
+        await setDoc(doc(db, 'quizzes', quiz.id), cleanQuiz, { merge: true });
       } catch (err) {
         console.warn('Firestore saveQuiz error:', err);
       }
@@ -778,11 +785,12 @@ export const DatabaseService = {
     const all = getStored<QuizItem>(LS_QUIZZES, INITIAL_QUIZZES);
     const idx = all.findIndex((q) => q.id === quiz.id);
     if (idx >= 0) {
-      all[idx] = quiz;
+      all[idx] = cleanQuiz;
     } else {
-      all.unshift(quiz);
+      all.unshift(cleanQuiz);
     }
     setStored(LS_QUIZZES, all);
+    notifySubscribers();
   },
 
   async toggleQuizStatus(id: string, status: 'buka' | 'kunci'): Promise<void> {
@@ -807,6 +815,7 @@ export const DatabaseService = {
     const all = getStored<QuizItem>(LS_QUIZZES, INITIAL_QUIZZES);
     const filtered = all.filter((q) => q.id !== id);
     setStored(LS_QUIZZES, filtered);
+    notifySubscribers();
   },
 
   // --- QUIZ SUBMISSIONS (Tracking pengerjaan murid) ---
@@ -832,9 +841,16 @@ export const DatabaseService = {
   },
 
   async saveQuizSubmission(submission: QuizSubmission): Promise<void> {
+    const cleanSub: any = {};
+    for (const [key, value] of Object.entries(submission)) {
+      if (value !== undefined) {
+        cleanSub[key] = value;
+      }
+    }
+
     if (isFirebaseConfigured() && db) {
       try {
-        await setDoc(doc(db, 'quiz_submissions', submission.id), submission, { merge: true });
+        await setDoc(doc(db, 'quiz_submissions', submission.id), cleanSub, { merge: true });
       } catch (err) {
         console.warn('Firestore saveQuizSubmission error:', err);
       }
@@ -842,11 +858,12 @@ export const DatabaseService = {
     const all = getStored<QuizSubmission>(LS_QUIZ_SUBMISSIONS, []);
     const idx = all.findIndex((s) => s.id === submission.id);
     if (idx >= 0) {
-      all[idx] = submission;
+      all[idx] = cleanSub;
     } else {
-      all.unshift(submission);
+      all.unshift(cleanSub);
     }
     setStored(LS_QUIZ_SUBMISSIONS, all);
+    notifySubscribers();
   },
 
   async resetToSeedData(): Promise<void> {

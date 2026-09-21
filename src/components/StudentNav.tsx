@@ -22,7 +22,7 @@ export const StudentNav: React.FC<StudentNavProps> = ({
   }> = [
     { id: 'home', label: 'Beranda', icon: Home },
     { id: 'tasks', label: 'Tugas', icon: ClipboardCheck, badge: pendingTaskCount },
-    { id: 'quizzes', label: 'Kuis', icon: HelpCircle },
+    { id: 'quizzes', label: 'Quis PJOK', icon: HelpCircle },
     { id: 'history', label: 'Riwayat', icon: History },
     { id: 'profile', label: 'Profil', icon: User }
   ];
