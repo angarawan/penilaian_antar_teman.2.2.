@@ -4,7 +4,9 @@ import {
   IndicatorItem,
   AssessmentTask,
   AssessmentRecord,
-  AppConfig
+  AppConfig,
+  QuizItem,
+  QuizSubmission
 } from '../types';
 import {
   INITIAL_CLASSES,
@@ -12,7 +14,8 @@ import {
   INITIAL_INDICATORS,
   INITIAL_TASKS,
   INITIAL_ASSESSMENTS,
-  INITIAL_APP_CONFIG
+  INITIAL_APP_CONFIG,
+  INITIAL_QUIZZES
 } from './seedData';
 import { db, storage, isFirebaseConfigured } from '../lib/firebase';
 import {
@@ -23,13 +26,15 @@ import {
   setDoc,
   deleteDoc,
   query,
-  where
+  where,
+  onSnapshot
 } from 'firebase/firestore';
 import {
   ref as storageRef,
-  uploadBytes,
+  uploadBytesResumable,
   getDownloadURL
 } from 'firebase/storage';
+import { MediaStore } from '../lib/mediaStore';
 
 // Local storage keys for hybrid/offline mode
 const LS_USERS = 'pjok_data_users';
@@ -38,6 +43,8 @@ const LS_INDICATORS = 'pjok_data_indicators';
 const LS_TASKS = 'pjok_data_tasks';
 const LS_ASSESSMENTS = 'pjok_data_assessments';
 const LS_APP_CONFIG = 'pjok_data_app_config';
+const LS_QUIZZES = 'pjok_data_quizzes';
+const LS_QUIZ_SUBMISSIONS = 'pjok_data_quiz_submissions';
 
 // Event listener subscribers for reactive updates across the app
 type ListenerCallback = () => void;
@@ -58,6 +65,144 @@ const notifySubscribers = () => {
       console.error('Listener callback error', e);
     }
   });
+};
+
+let realtimeListenersInitialized = false;
+
+/**
+ * Memasang pendengar real-time Firestore (onSnapshot)
+ * agar semua perubahan data (pengaturan, logo, kelas, siswa, tugas, penilaian)
+ * langsung sinkron detik itu juga antar Laptop dan HP tanpa perlu refresh.
+ */
+export const initRealtimeCloudSync = () => {
+  if (realtimeListenersInitialized || !isFirebaseConfigured() || !db) return;
+  realtimeListenersInitialized = true;
+
+  try {
+    // 1. Settings / App Config & Logo
+    onSnapshot(
+      doc(db, 'settings', 'app_config'),
+      (snap) => {
+        if (snap.exists()) {
+          const cloudConfig = { ...INITIAL_APP_CONFIG, ...(snap.data() as AppConfig) };
+          try {
+            localStorage.setItem(LS_APP_CONFIG, JSON.stringify(cloudConfig));
+          } catch {}
+          notifySubscribers();
+        }
+      },
+      (err) => console.warn('Realtime app_config sync notice:', err)
+    );
+
+    // 2. Classes (Kelas)
+    onSnapshot(
+      collection(db, 'classes'),
+      (snap) => {
+        if (!snap.empty) {
+          const cloudClasses = snap.docs.map((d) => d.data() as ClassItem);
+          try {
+            localStorage.setItem(LS_CLASSES, JSON.stringify(cloudClasses));
+          } catch {}
+          notifySubscribers();
+        }
+      },
+      (err) => console.warn('Realtime classes sync notice:', err)
+    );
+
+    // 3. Assessment Tasks (Tugas Penilaian)
+    onSnapshot(
+      collection(db, 'tasks'),
+      (snap) => {
+        if (!snap.empty) {
+          const cloudTasks = snap.docs.map((d) => d.data() as AssessmentTask);
+          try {
+            localStorage.setItem(LS_TASKS, JSON.stringify(cloudTasks));
+          } catch {}
+          notifySubscribers();
+        }
+      },
+      (err) => console.warn('Realtime tasks sync notice:', err)
+    );
+
+    // 4. Rubric Indicators (Indikator Penilaian)
+    onSnapshot(
+      collection(db, 'indicators'),
+      (snap) => {
+        if (!snap.empty) {
+          const cloudIndicators = snap.docs
+            .map((d) => d.data() as IndicatorItem)
+            .sort((a, b) => a.urutan - b.urutan);
+          try {
+            localStorage.setItem(LS_INDICATORS, JSON.stringify(cloudIndicators));
+          } catch {}
+          notifySubscribers();
+        }
+      },
+      (err) => console.warn('Realtime indicators sync notice:', err)
+    );
+
+    // 5. Users (Koleksi Pengguna / Guru & Murid)
+    onSnapshot(
+      collection(db, 'pengguna'),
+      (snap) => {
+        if (!snap.empty) {
+          const cloudUsers = snap.docs.map((d) => d.data() as UserProfile);
+          try {
+            localStorage.setItem(LS_USERS, JSON.stringify(cloudUsers));
+          } catch {}
+          notifySubscribers();
+        }
+      },
+      (err) => console.warn('Realtime pengguna sync notice:', err)
+    );
+
+    // 6. Assessments (Hasil Penilaian Antar Teman)
+    onSnapshot(
+      collection(db, 'assessments'),
+      (snap) => {
+        if (!snap.empty) {
+          const cloudAssessments = snap.docs.map((d) => d.data() as AssessmentRecord);
+          try {
+            localStorage.setItem(LS_ASSESSMENTS, JSON.stringify(cloudAssessments));
+          } catch {}
+          notifySubscribers();
+        }
+      },
+      (err) => console.warn('Realtime assessments sync notice:', err)
+    );
+
+    // 7. Quizzes (Kuis Link & Kunci Guru PJOK)
+    onSnapshot(
+      collection(db, 'quizzes'),
+      (snap) => {
+        if (!snap.empty) {
+          const cloudQuizzes = snap.docs.map((d) => d.data() as QuizItem);
+          try {
+            localStorage.setItem(LS_QUIZZES, JSON.stringify(cloudQuizzes));
+          } catch {}
+          notifySubscribers();
+        }
+      },
+      (err) => console.warn('Realtime quizzes sync notice:', err)
+    );
+
+    // 8. Quiz Submissions (Pengerjaan Kuis Siswa)
+    onSnapshot(
+      collection(db, 'quiz_submissions'),
+      (snap) => {
+        if (!snap.empty) {
+          const cloudSubs = snap.docs.map((d) => d.data() as QuizSubmission);
+          try {
+            localStorage.setItem(LS_QUIZ_SUBMISSIONS, JSON.stringify(cloudSubs));
+          } catch {}
+          notifySubscribers();
+        }
+      },
+      (err) => console.warn('Realtime quiz_submissions sync notice:', err)
+    );
+  } catch (err) {
+    console.warn('Gagal memasang realtime listener Firestore:', err);
+  }
 };
 
 // Helper to initialize local storage with initial seed data if not present
@@ -410,58 +555,113 @@ export const DatabaseService = {
   },
 
   async saveAssessment(record: AssessmentRecord): Promise<void> {
+    // Sanitasi record untuk Firestore & LocalStorage:
+    // Jangan pernah memasukkan base64 video berukuran puluhan MB ke dokumen Firestore atau localStorage
+    const recordToSave: AssessmentRecord = { ...record };
+    if (
+      recordToSave.evidenceUrl &&
+      recordToSave.evidenceUrl.startsWith('data:video') &&
+      recordToSave.evidenceUrl.length > 50000
+    ) {
+      // Ganti dengan idb:// ID jika belum disimpan di storage agar dokumen tetap ringan (<50KB)
+      recordToSave.evidenceUrl = `idb://${record.id}`;
+    }
+
     if (isFirebaseConfigured() && db) {
       try {
-        await setDoc(doc(db, 'assessments', record.id), record, { merge: true });
+        await setDoc(doc(db, 'assessments', recordToSave.id), recordToSave, { merge: true });
       } catch (err) {
         console.warn('Firestore saveAssessment error:', err);
       }
     }
     const all = getStored<AssessmentRecord>(LS_ASSESSMENTS, INITIAL_ASSESSMENTS);
-    const idx = all.findIndex((a) => a.id === record.id);
+    const idx = all.findIndex((a) => a.id === recordToSave.id);
     if (idx >= 0) {
-      all[idx] = record;
+      all[idx] = recordToSave;
     } else {
-      all.push(record);
+      all.push(recordToSave);
     }
     setStored(LS_ASSESSMENTS, all);
+    notifySubscribers();
   },
 
-  // --- EVIDENCE UPLOAD (Firebase Storage with local fallback) ---
+  // --- EVIDENCE UPLOAD (IndexedDB + Firebase Storage + Ultra-Fast Thumbnail) ---
   async uploadEvidence(
     file: File,
     taskId: string,
-    assessorId: string
-  ): Promise<{ url: string; path: string }> {
+    assessorId: string,
+    onProgress?: (percent: number) => void
+  ): Promise<{ url: string; path: string; thumbnailUrl?: string | null }> {
     const safeFileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
     const storagePath = `assessment-evidence/${taskId}/${assessorId}/${safeFileName}`;
 
+    // 1. Simpan segera ke IndexedDB dalam waktu < 50ms tanpa blocking
+    const mediaId = `media_${taskId}_${assessorId}_${Date.now()}`;
+    const idbUrl = await MediaStore.saveMedia(mediaId, file);
+
+    // 2. Buat thumbnail ringkas (~15KB) secara instan agar guru & siswa langsung bisa melihat bukti
+    let thumbnailUrl: string | null = null;
+    if (file.type.startsWith('video/')) {
+      try {
+        thumbnailUrl = await MediaStore.generateVideoThumbnail(file);
+      } catch (e) {
+        console.warn('Gagal membuat thumbnail video:', e);
+      }
+    } else if (file.type.startsWith('image/')) {
+      try {
+        thumbnailUrl = await MediaStore.compressImage(file, 480, 0.65);
+      } catch {}
+    }
+
+    // 3. Jika Firebase Storage aktif, lakukan upload dengan batas waktu timeout
     if (isFirebaseConfigured() && storage) {
       try {
         const fileRef = storageRef(storage, storagePath);
-        const snapshot = await uploadBytes(fileRef, file);
-        const downloadUrl = await getDownloadURL(snapshot.ref);
-        return { url: downloadUrl, path: storagePath };
+        const uploadTask = uploadBytesResumable(fileRef, file);
+
+        const uploadPromise = new Promise<{ url: string; path: string }>((resolve, reject) => {
+          uploadTask.on(
+            'state_changed',
+            (snapshot) => {
+              if (snapshot.totalBytes > 0) {
+                const percent = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+                onProgress?.(percent);
+              }
+            },
+            (error) => reject(error),
+            async () => {
+              const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+              resolve({ url: downloadUrl, path: storagePath });
+            }
+          );
+        });
+
+        // Timeout 10 detik agar tidak membuat pengguna terhenti jika jaringan lambat
+        const timeoutPromise = new Promise<{ url: string; path: string }>((_, reject) =>
+          setTimeout(() => reject(new Error('Upload cloud timeout, beralih ke penyimpanan lokal super cepat.')), 10000)
+        );
+
+        const res = await Promise.race([uploadPromise, timeoutPromise]);
+        return { ...res, thumbnailUrl };
       } catch (err) {
-        console.warn('Firebase storage upload failed, using local object URL fallback:', err);
+        console.warn('Firebase storage upload failed or timed out, using fast local media:', err);
       }
     }
 
-    // Local / offline fallback: Create object URL or Base64
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        resolve({
-          url: reader.result as string,
-          path: storagePath
-        });
-      };
-      reader.readAsDataURL(file);
-    });
+    onProgress?.(100);
+    return {
+      url: idbUrl,
+      path: storagePath,
+      thumbnailUrl
+    };
   },
 
-  async uploadMedia(file: File, path?: string): Promise<{ url: string; path: string }> {
-    return this.uploadEvidence(file, path || 'assessments', 'upload');
+  async uploadMedia(
+    file: File,
+    path?: string,
+    onProgress?: (percent: number) => void
+  ): Promise<{ url: string; path: string; thumbnailUrl?: string | null }> {
+    return this.uploadEvidence(file, path || 'assessments', 'upload', onProgress);
   },
 
   // --- APP CONFIG & LOGO (Sinkron Multi-Device HP & Laptop) ---
@@ -532,12 +732,129 @@ export const DatabaseService = {
     return this.saveAppConfig(INITIAL_APP_CONFIG);
   },
 
+  // --- QUIZZES (Kuis PJOK Link & Kunci Guru-Murid) ---
+  async getQuizzes(): Promise<QuizItem[]> {
+    if (isFirebaseConfigured() && db) {
+      try {
+        const snap = await getDocs(collection(db, 'quizzes'));
+        if (!snap.empty) {
+          const cloudQuizzes = snap.docs.map((d) => d.data() as QuizItem);
+          try {
+            localStorage.setItem(LS_QUIZZES, JSON.stringify(cloudQuizzes));
+          } catch {}
+          return cloudQuizzes;
+        }
+      } catch (err) {
+        console.warn('Firestore getQuizzes error, using local fallback:', err);
+      }
+    }
+    return getStored<QuizItem>(LS_QUIZZES, INITIAL_QUIZZES);
+  },
+
+  async getQuizzesForClass(kelas: string): Promise<QuizItem[]> {
+    const quizzes = await this.getQuizzes();
+    const cleanClass = (kelas || '').trim().toLowerCase();
+    return quizzes.filter(
+      (q) =>
+        q.kelas === 'Semua Kelas' ||
+        q.kelas === 'Semua' ||
+        q.kelas.trim().toLowerCase() === cleanClass
+    );
+  },
+
+  async getQuiz(id: string): Promise<QuizItem | null> {
+    const quizzes = await this.getQuizzes();
+    return quizzes.find((q) => q.id === id) || null;
+  },
+
+  async saveQuiz(quiz: QuizItem): Promise<void> {
+    if (isFirebaseConfigured() && db) {
+      try {
+        await setDoc(doc(db, 'quizzes', quiz.id), quiz, { merge: true });
+      } catch (err) {
+        console.warn('Firestore saveQuiz error:', err);
+      }
+    }
+    const all = getStored<QuizItem>(LS_QUIZZES, INITIAL_QUIZZES);
+    const idx = all.findIndex((q) => q.id === quiz.id);
+    if (idx >= 0) {
+      all[idx] = quiz;
+    } else {
+      all.unshift(quiz);
+    }
+    setStored(LS_QUIZZES, all);
+  },
+
+  async toggleQuizStatus(id: string, status: 'buka' | 'kunci'): Promise<void> {
+    const quiz = await this.getQuiz(id);
+    if (!quiz) return;
+    const updated: QuizItem = {
+      ...quiz,
+      status,
+      updatedAt: new Date().toISOString()
+    };
+    await this.saveQuiz(updated);
+  },
+
+  async deleteQuiz(id: string): Promise<void> {
+    if (isFirebaseConfigured() && db) {
+      try {
+        await deleteDoc(doc(db, 'quizzes', id));
+      } catch (err) {
+        console.warn('Firestore deleteQuiz error:', err);
+      }
+    }
+    const all = getStored<QuizItem>(LS_QUIZZES, INITIAL_QUIZZES);
+    const filtered = all.filter((q) => q.id !== id);
+    setStored(LS_QUIZZES, filtered);
+  },
+
+  // --- QUIZ SUBMISSIONS (Tracking pengerjaan murid) ---
+  async getQuizSubmissions(quizId?: string): Promise<QuizSubmission[]> {
+    if (isFirebaseConfigured() && db) {
+      try {
+        const snap = await getDocs(collection(db, 'quiz_submissions'));
+        if (!snap.empty) {
+          const cloudSubs = snap.docs.map((d) => d.data() as QuizSubmission);
+          try {
+            localStorage.setItem(LS_QUIZ_SUBMISSIONS, JSON.stringify(cloudSubs));
+          } catch {}
+          if (quizId) return cloudSubs.filter((s) => s.quizId === quizId);
+          return cloudSubs;
+        }
+      } catch (err) {
+        console.warn('Firestore getQuizSubmissions error, using local:', err);
+      }
+    }
+    const all = getStored<QuizSubmission>(LS_QUIZ_SUBMISSIONS, []);
+    if (quizId) return all.filter((s) => s.quizId === quizId);
+    return all;
+  },
+
+  async saveQuizSubmission(submission: QuizSubmission): Promise<void> {
+    if (isFirebaseConfigured() && db) {
+      try {
+        await setDoc(doc(db, 'quiz_submissions', submission.id), submission, { merge: true });
+      } catch (err) {
+        console.warn('Firestore saveQuizSubmission error:', err);
+      }
+    }
+    const all = getStored<QuizSubmission>(LS_QUIZ_SUBMISSIONS, []);
+    const idx = all.findIndex((s) => s.id === submission.id);
+    if (idx >= 0) {
+      all[idx] = submission;
+    } else {
+      all.unshift(submission);
+    }
+    setStored(LS_QUIZ_SUBMISSIONS, all);
+  },
+
   async resetToSeedData(): Promise<void> {
     this.resetToDefaults();
   },
 
   /**
-   * Mengunggah seluruh data lokal (pengaturan, kelas, indikator, tugas, pengguna)
+   * Mengunggah seluruh data lokal (pengaturan, kelas, indikator, tugas, pengguna, kuis)
    * ke Firestore agar tersinkronisasi 100% antar laptop dan HP.
    */
   async syncAllLocalDataToCloud(): Promise<{ success: boolean; message: string }> {
@@ -583,10 +900,16 @@ export const DatabaseService = {
         await setDoc(doc(db, 'assessments', a.id), a, { merge: true });
       }
 
+      // 7. Sinkronkan Kuis
+      const localQuizzes = getStored<QuizItem>(LS_QUIZZES, INITIAL_QUIZZES);
+      for (const q of localQuizzes) {
+        await setDoc(doc(db, 'quizzes', q.id), q, { merge: true });
+      }
+
       notifySubscribers();
       return {
         success: true,
-        message: 'Semua data (Logo, Pengaturan, Kelas, Siswa, Indikator, & Tugas) berhasil disinkronkan ke Firebase Cloud. Sekarang laptop dan HP sinkron!'
+        message: 'Semua data (Logo, Pengaturan, Kelas, Siswa, Indikator, Tugas, & Kuis) berhasil disinkronkan ke Firebase Cloud. Sekarang laptop dan HP sinkron!'
       };
     } catch (error: any) {
       console.error('Error saat sinkronisasi ke cloud:', error);
@@ -613,6 +936,13 @@ export const DatabaseService = {
         const cfg = stored ? JSON.parse(stored) : INITIAL_APP_CONFIG;
         await setDoc(doc(db, 'settings', 'app_config'), cfg, { merge: true });
       }
+      // Pastikan initial kuis ada di Firestore jika kosong
+      const snapQuiz = await getDocs(collection(db, 'quizzes'));
+      if (snapQuiz.empty) {
+        for (const q of INITIAL_QUIZZES) {
+          await setDoc(doc(db, 'quizzes', q.id), q, { merge: true });
+        }
+      }
     } catch (e) {
       console.warn('seedPenggunaToFirestore notice:', e);
     }
@@ -626,12 +956,16 @@ export const DatabaseService = {
     localStorage.removeItem(LS_TASKS);
     localStorage.removeItem(LS_ASSESSMENTS);
     localStorage.removeItem(LS_APP_CONFIG);
+    localStorage.removeItem(LS_QUIZZES);
+    localStorage.removeItem(LS_QUIZ_SUBMISSIONS);
     localStorage.setItem(LS_USERS, JSON.stringify(INITIAL_USERS));
     localStorage.setItem(LS_CLASSES, JSON.stringify(INITIAL_CLASSES));
     localStorage.setItem(LS_INDICATORS, JSON.stringify(INITIAL_INDICATORS));
     localStorage.setItem(LS_TASKS, JSON.stringify(INITIAL_TASKS));
     localStorage.setItem(LS_ASSESSMENTS, JSON.stringify(INITIAL_ASSESSMENTS));
     localStorage.setItem(LS_APP_CONFIG, JSON.stringify(INITIAL_APP_CONFIG));
+    localStorage.setItem(LS_QUIZZES, JSON.stringify(INITIAL_QUIZZES));
+    localStorage.setItem(LS_QUIZ_SUBMISSIONS, JSON.stringify([]));
     notifySubscribers();
   }
 };

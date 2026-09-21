@@ -9,6 +9,7 @@ import { AssessmentResults } from './teacher/AssessmentResults';
 import { RecapScores } from './teacher/RecapScores';
 import { Analytics } from './teacher/Analytics';
 import { SettingsPage } from './teacher/SettingsPage';
+import { QuizManagement } from './teacher/QuizManagement';
 import { AssessmentRecord } from '../types';
 
 interface TeacherViewProps {
@@ -53,6 +54,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
         {currentMenu === 'classes' && <ClassManagement />}
         {currentMenu === 'indicators' && <IndicatorManagement />}
         {currentMenu === 'tasks' && <TaskManagement />}
+        {currentMenu === 'quizzes' && <QuizManagement />}
         {currentMenu === 'results' && (
           <AssessmentResults
             initialSelectedRecord={selectedRecordForDetail}

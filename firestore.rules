@@ -42,6 +42,16 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Quizzes collection (Manajemen Kuis Link & Kunci Guru-Murid)
+    match /quizzes/{quizId} {
+      allow read, write: if true;
+    }
+
+    // Quiz Submissions collection (Daftar Siswa yang Mengerjakan Kuis)
+    match /quiz_submissions/{subId} {
+      allow read, write: if true;
+    }
+
     // Default deny catch-all
     match /{document=**} {
       allow read, write: if false;

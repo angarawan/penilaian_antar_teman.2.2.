@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { DatabaseService, subscribeToDataChanges } from '../../services/db';
 import { AssessmentRecord, AssessmentTask } from '../../types';
+import { EvidenceViewer } from '../../components/EvidenceViewer';
 import {
   History,
   Award,
@@ -336,25 +337,25 @@ export const StudentHistory: React.FC<StudentHistoryProps> = ({ onEditAssessment
               </div>
 
               {/* Evidence */}
-              {selectedRecord.evidenceUrl && (
+              {(selectedRecord.evidenceUrl || selectedRecord.thumbnailUrl) && (
                 <div>
-                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                    Lampiran Bukti Gerakan:
-                  </h4>
-                  <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-900 max-h-60 flex items-center justify-center">
-                    {selectedRecord.evidenceType === 'video' ? (
-                      <video
-                        src={selectedRecord.evidenceUrl}
-                        controls
-                        className="w-full max-h-60 object-contain"
-                      />
-                    ) : (
-                      <img
-                        src={selectedRecord.evidenceUrl}
-                        alt="Bukti gerakan"
-                        className="w-full max-h-60 object-contain bg-slate-100"
-                      />
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                      Lampiran Bukti Gerakan ({selectedRecord.evidenceType?.toUpperCase() || 'VIDEO'}):
+                    </h4>
+                    {selectedRecord.videoFileSize && (
+                      <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md">
+                        {selectedRecord.videoFileSize}
+                      </span>
                     )}
+                  </div>
+                  <div className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-950 max-h-60 flex items-center justify-center">
+                    <EvidenceViewer
+                      evidenceUrl={selectedRecord.evidenceUrl}
+                      thumbnailUrl={selectedRecord.thumbnailUrl}
+                      evidenceType={selectedRecord.evidenceType}
+                      className="w-full max-h-60 object-contain"
+                    />
                   </div>
                 </div>
               )}

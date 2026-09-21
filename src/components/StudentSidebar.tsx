@@ -10,7 +10,8 @@ import {
   LogOut,
   X,
   HeartHandshake,
-  GraduationCap
+  GraduationCap,
+  HelpCircle
 } from 'lucide-react';
 
 interface StudentSidebarProps {
@@ -49,6 +50,12 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
       icon: ClipboardList,
       badge: pendingTaskCount,
       description: 'Daftar praktik kelas'
+    },
+    {
+      id: 'quizzes',
+      label: 'Kuis PJOK (Link & Kunci)',
+      icon: HelpCircle,
+      description: 'Soal & ujian guru'
     },
     {
       id: 'history',

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { UserProfile, UserRole } from '../types';
-import { DatabaseService } from '../services/db';
+import { DatabaseService, initRealtimeCloudSync } from '../services/db';
 import { auth, db, isFirebaseConfigured } from '../lib/firebase';
 import {
   onAuthStateChanged,
@@ -150,6 +150,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const initAuth = async () => {
       setLoading(true);
+
+      // Mulai sinkronisasi realtime cloud Firestore antar perangkat (HP & Laptop)
+      initRealtimeCloudSync();
 
       // Siapkan seed pengguna awal di Firestore jika koleksi masih kosong
       DatabaseService.seedPenggunaToFirestoreIfEmpty().catch(() => {});

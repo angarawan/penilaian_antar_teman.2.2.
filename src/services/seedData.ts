@@ -295,3 +295,19 @@ export const INITIAL_ASSESSMENTS: AssessmentRecord[] = [
     updatedAt: '2026-09-20T11:20:00.000Z'
   }
 ];
+
+export const INITIAL_QUIZZES: any[] = [
+  {
+    id: 'quiz-basket-1',
+    judul: 'Kuis Teori & Pemahaman Teknik Bola Basket',
+    materi: 'Permainan Bola Besar (Bola Basket)',
+    kelas: 'Semua Kelas',
+    linkUrl: 'https://forms.gle/demo-pjok-basket-2026',
+    status: 'kunci', // Default status terkunci oleh guru
+    kodeKunci: 'PJOK123',
+    durasiMenit: 30,
+    instruksi: 'Kerjakan soal kuis pemahaman teknik dasar bola basket (Chest Pass, Bounce Pass, Overhead Pass, Pivot, dan Lay-up) saat jam pelajaran guru dimulai.',
+    createdBy: 'Guru PJOK',
+    createdAt: new Date().toISOString()
+  }
+];

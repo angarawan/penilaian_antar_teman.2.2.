@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { DatabaseService, subscribeToDataChanges } from '../../services/db';
-import { AssessmentTask, AssessmentRecord } from '../../types';
+import { AssessmentTask, AssessmentRecord, QuizItem } from '../../types';
 import { StudentTab } from '../../components/StudentNav';
 import {
   Sparkles,
@@ -12,7 +12,9 @@ import {
   Award,
   Calendar,
   HeartHandshake,
-  HelpCircle
+  HelpCircle,
+  Unlock,
+  Lock
 } from 'lucide-react';
 
 interface StudentHomeProps {
@@ -26,14 +28,16 @@ export const StudentHome: React.FC<StudentHomeProps> = ({
 }) => {
   const { user } = useAuth();
   const [tasks, setTasks] = useState<AssessmentTask[]>([]);
+  const [quizzes, setQuizzes] = useState<QuizItem[]>([]);
   const [myAssessmentsGiven, setMyAssessmentsGiven] = useState<AssessmentRecord[]>([]);
   const [myAssessmentsReceived, setMyAssessmentsReceived] = useState<AssessmentRecord[]>([]);
 
   const loadData = async () => {
     if (!user) return;
-    const [allTasks, allAssessments] = await Promise.all([
+    const [allTasks, allAssessments, allQuizzes] = await Promise.all([
       DatabaseService.getTasks(),
-      DatabaseService.getAssessments()
+      DatabaseService.getAssessments(),
+      DatabaseService.getQuizzesForClass(user.kelas || 'Semua Kelas')
     ]);
 
     // Tasks for user's class
@@ -42,6 +46,7 @@ export const StudentHome: React.FC<StudentHomeProps> = ({
       (t) => t.kelas.toLowerCase() === userClass && t.status === 'aktif'
     );
     setTasks(relevantTasks);
+    setQuizzes(allQuizzes);
 
     // Given by me
     const given = allAssessments.filter(
@@ -95,13 +100,20 @@ export const StudentHome: React.FC<StudentHomeProps> = ({
             &ldquo;Belajar menilai, belajar memperbaiki gerak bersama teman secara sportif dan objektif.&rdquo;
           </p>
 
-          <div className="mt-4 sm:mt-5 flex flex-col xs:flex-row gap-2 sm:gap-2.5">
+          <div className="mt-4 sm:mt-5 flex flex-wrap gap-2 sm:gap-2.5">
             <button
               onClick={() => onNavigateTab('tasks')}
               className="px-4 py-2.5 rounded-xl bg-white text-indigo-900 text-xs sm:text-sm font-bold shadow-md hover:bg-blue-50 transition-colors inline-flex items-center justify-center gap-2 cursor-pointer"
             >
               <ClipboardList className="w-4 h-4 text-indigo-600" />
-              <span>Tugas Penilaian Saya</span>
+              <span>Tugas Penilaian</span>
+            </button>
+            <button
+              onClick={() => onNavigateTab('quizzes')}
+              className="px-4 py-2.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-white text-xs sm:text-sm font-bold shadow-md shadow-teal-700/20 transition-colors inline-flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <HelpCircle className="w-4 h-4 text-white" />
+              <span>Kuis PJOK {quizzes.filter((q) => q.status === 'buka').length > 0 ? `(${quizzes.filter((q) => q.status === 'buka').length} Dibuka)` : ''}</span>
             </button>
             <button
               onClick={() => onNavigateTab('history')}
@@ -116,6 +128,44 @@ export const StudentHome: React.FC<StudentHomeProps> = ({
         {/* Decorative circle */}
         <div className="absolute -right-8 -bottom-8 w-56 h-56 bg-white/10 rounded-full blur-2xl pointer-events-none" />
       </div>
+
+      {/* Quiz Highlight Banner if quizzes exist */}
+      {quizzes.length > 0 && (
+        <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-linear-to-r from-teal-500/10 via-emerald-500/10 to-teal-500/5 border border-teal-200/80 dark:border-teal-800/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-teal-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <HelpCircle className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="font-extrabold text-slate-900 dark:text-white text-sm font-heading">
+                  Kuis PJOK dari Guru
+                </h4>
+                {quizzes.filter((q) => q.status === 'buka').length > 0 ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 animate-pulse">
+                    <Unlock className="w-2.5 h-2.5" /> Kuis Dibuka
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                    <Lock className="w-2.5 h-2.5" /> Menunggu Waktu Guru
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                Ada {quizzes.length} kuis terdaftar untuk kelas Anda. Guru mengatur status gembok kuis.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => onNavigateTab('quizzes')}
+            className="self-start sm:self-center px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+          >
+            <span>Buka Menu Kuis</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Overview Metric Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-4">

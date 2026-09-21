@@ -5,6 +5,7 @@ import { StudentHome } from './student/StudentHome';
 import { StudentAssessmentForm } from './student/StudentAssessmentForm';
 import { StudentHistory } from './student/StudentHistory';
 import { StudentProfile } from './student/StudentProfile';
+import { StudentQuiz } from './student/StudentQuiz';
 import { AssessmentTask, AssessmentRecord } from '../types';
 import { DatabaseService, subscribeToDataChanges } from '../services/db';
 import { useAuth } from '../context/AuthContext';
@@ -16,7 +17,8 @@ import {
   ArrowRight,
   Home,
   History,
-  User
+  User,
+  HelpCircle
 } from 'lucide-react';
 
 interface StudentViewProps {
@@ -219,6 +221,8 @@ export const StudentView: React.FC<StudentViewProps> = ({
             />
           )}
 
+          {currentTab === 'quizzes' && <StudentQuiz />}
+
           {currentTab === 'profile' && <StudentProfile />}
         </main>
       </div>
@@ -231,7 +235,7 @@ export const StudentView: React.FC<StudentViewProps> = ({
         <button
           type="button"
           onClick={() => setCurrentTab('home')}
-          className={`flex flex-col items-center justify-center min-h-[44px] px-3 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+          className={`flex flex-col items-center justify-center min-h-[44px] px-2.5 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
             currentTab === 'home'
               ? 'text-teal-600 dark:text-teal-400 font-bold'
               : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
@@ -244,7 +248,7 @@ export const StudentView: React.FC<StudentViewProps> = ({
         <button
           type="button"
           onClick={() => setCurrentTab('tasks')}
-          className={`relative flex flex-col items-center justify-center min-h-[44px] px-3 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+          className={`relative flex flex-col items-center justify-center min-h-[44px] px-2.5 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
             currentTab === 'tasks'
               ? 'text-teal-600 dark:text-teal-400 font-bold'
               : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
@@ -263,8 +267,21 @@ export const StudentView: React.FC<StudentViewProps> = ({
 
         <button
           type="button"
+          onClick={() => setCurrentTab('quizzes')}
+          className={`flex flex-col items-center justify-center min-h-[44px] px-2.5 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+            currentTab === 'quizzes'
+              ? 'text-teal-600 dark:text-teal-400 font-bold'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <HelpCircle className={`w-5 h-5 ${currentTab === 'quizzes' ? 'stroke-[2.5]' : ''}`} />
+          <span className="text-[10px] mt-0.5">Kuis</span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setCurrentTab('history')}
-          className={`flex flex-col items-center justify-center min-h-[44px] px-3 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+          className={`flex flex-col items-center justify-center min-h-[44px] px-2.5 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
             currentTab === 'history'
               ? 'text-teal-600 dark:text-teal-400 font-bold'
               : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
@@ -277,7 +294,7 @@ export const StudentView: React.FC<StudentViewProps> = ({
         <button
           type="button"
           onClick={() => setCurrentTab('profile')}
-          className={`flex flex-col items-center justify-center min-h-[44px] px-3 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+          className={`flex flex-col items-center justify-center min-h-[44px] px-2.5 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
             currentTab === 'profile'
               ? 'text-teal-600 dark:text-teal-400 font-bold'
               : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'

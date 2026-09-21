@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { DatabaseService } from '../../services/db';
+import { MediaStore } from '../../lib/mediaStore';
 import {
   AssessmentTask,
   IndicatorItem,
@@ -54,8 +55,13 @@ export const StudentAssessmentForm: React.FC<StudentAssessmentFormProps> = ({
   const [evidenceUrl, setEvidenceUrl] = useState<string | null>(
     existingRecord?.evidenceUrl || null
   );
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(
+    existingRecord?.thumbnailUrl || null
+  );
   const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [fileInfo, setFileInfo] = useState<{ name: string; sizeMB: string } | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -129,36 +135,54 @@ export const StudentAssessmentForm: React.FC<StudentAssessmentFormProps> = ({
   const live100 =
     scoredKeys.length > 0 ? Math.round((Number(liveAverage) / 4) * 100) : 0;
 
-  // File upload handler
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // File upload handler - Dioptimalkan untuk video 1 menit (hingga 150MB)
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate size (max 25MB for quick upload)
-    if (file.size > 25 * 1024 * 1024) {
-      alert('Ukuran file terlalu besar (maksimal 25MB).');
+    // Batas aman ukuran file hingga 150MB untuk video PJOK resolusi tinggi dari smartphone
+    if (file.size > 150 * 1024 * 1024) {
+      alert('Ukuran file terlalu besar (maksimal 150MB). Disarankan merekam video gerakan 15 - 45 detik.');
       return;
     }
 
+    const sizeInMB = (file.size / (1024 * 1024)).toFixed(1);
+    setFileInfo({
+      name: file.name,
+      sizeMB: `${sizeInMB} MB`
+    });
     setMediaFile(file);
-    if (file.type.startsWith('video/')) {
-      setEvidenceType('video');
-    } else {
-      setEvidenceType('foto');
-    }
 
-    // Generate local preview URL
+    const isVideo = file.type.startsWith('video/');
+    setEvidenceType(isVideo ? 'video' : 'foto');
+
+    // Generate local preview URL instan
     const previewUrl = URL.createObjectURL(file);
     setEvidenceUrl(previewUrl);
+
+    // Buat thumbnail gerakan otomatis secara cepat (< 1 detik)
+    if (isVideo) {
+      try {
+        const thumb = await MediaStore.generateVideoThumbnail(file);
+        if (thumb) {
+          setThumbnailPreview(thumb);
+        }
+      } catch (err) {
+        console.warn('Gagal membuat thumbnail video:', err);
+      }
+    }
   };
 
   const handleRemoveMedia = () => {
     setMediaFile(null);
     setEvidenceUrl(null);
+    setThumbnailPreview(null);
+    setFileInfo(null);
     setEvidenceType('none');
+    setUploadProgress(0);
   };
 
-  // Submit assessment (Section 12, 13)
+  // Submit assessment - Super Cepat (< 1 detik)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
@@ -190,21 +214,29 @@ export const StudentAssessmentForm: React.FC<StudentAssessmentFormProps> = ({
     }
 
     setSubmitting(true);
+    setUploadProgress(10);
 
     try {
       const targetUser = classmates.find((c) => c.uid === selectedTargetId);
       const targetName = targetUser?.nama || 'Teman Sekelas';
       const targetClass = targetUser?.kelas || task.kelas;
 
-      // Handle file upload to Firebase Storage or base64 storage
+      // Handle file upload secara cepat dengan progress callback dan IndexedDB fallback
       let uploadedUrl = evidenceUrl;
+      let finalThumbnail = thumbnailPreview;
+
       if (mediaFile) {
         setUploading(true);
+        setUploadProgress(20);
         const uploadResult = await DatabaseService.uploadMedia(
           mediaFile,
-          `assessments/${task.id}/${user?.uid}_${selectedTargetId}_${Date.now()}`
+          `assessments/${task.id}/${user?.uid}_${selectedTargetId}_${Date.now()}`,
+          (percent) => setUploadProgress(percent)
         );
         uploadedUrl = uploadResult.url;
+        if (uploadResult.thumbnailUrl) {
+          finalThumbnail = uploadResult.thumbnailUrl;
+        }
         setUploading(false);
       }
 
@@ -235,11 +267,14 @@ export const StudentAssessmentForm: React.FC<StudentAssessmentFormProps> = ({
         finalScore100: final100,
         feedback: feedback.trim(),
         evidenceUrl: uploadedUrl,
+        thumbnailUrl: finalThumbnail,
+        videoFileSize: fileInfo?.sizeMB,
         evidenceType: evidenceType,
         createdAt: existingRecord?.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
 
+      // Simpan penilaian ke database secara instan
       await DatabaseService.saveAssessment(record);
       setSubmitting(false);
       setShowSuccessModal(true);
@@ -256,34 +291,34 @@ export const StudentAssessmentForm: React.FC<StudentAssessmentFormProps> = ({
       <button
         type="button"
         onClick={onBack}
-        className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-slate-600 hover:text-slate-900 transition-colors"
+        className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-slate-600 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400 transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
         <span>Kembali ke Beranda Tugas</span>
       </button>
 
       {/* Task Summary Card */}
-      <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-xs space-y-3">
+      <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-3">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-blue-100 text-blue-900">
+          <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-emerald-100 text-emerald-900 dark:bg-emerald-950/80 dark:text-emerald-300">
             Kelas {task.kelas}
           </span>
-          <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700">
+          <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
             Materi: {task.materi}
           </span>
           {task.wajibBukti && (
-            <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-100 text-amber-900">
+            <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-300">
               Wajib Unggah Bukti
             </span>
           )}
         </div>
 
-        <h2 className="text-lg sm:text-2xl font-black text-slate-900 font-heading">
+        <h2 className="text-lg sm:text-2xl font-black text-slate-900 dark:text-slate-100 font-heading">
           {task.nama}
         </h2>
 
-        <div className="p-3.5 sm:p-4 rounded-xl sm:rounded-2xl bg-blue-50/70 border border-blue-100 text-xs sm:text-sm text-blue-950">
-          <p className="font-bold mb-1 text-blue-900">Instruksi Guru PJOK:</p>
+        <div className="p-3.5 sm:p-4 rounded-xl sm:rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50 text-xs sm:text-sm text-emerald-950 dark:text-emerald-200">
+          <p className="font-bold mb-1 text-emerald-900 dark:text-emerald-300">Instruksi Guru PJOK:</p>
           <p className="leading-relaxed">{task.instruksi}</p>
         </div>
       </div>
@@ -291,13 +326,13 @@ export const StudentAssessmentForm: React.FC<StudentAssessmentFormProps> = ({
       {/* Main Assessment Form */}
       <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
         {/* Step 1: Choose Peer (Dropdown) */}
-        <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-xs space-y-3">
+        <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-3">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-900 flex items-center justify-center font-bold text-sm">
+            <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-900 dark:bg-emerald-950/80 dark:text-emerald-300 flex items-center justify-center font-bold text-sm">
               1
             </div>
             <div>
-              <label className="block text-sm sm:text-base font-extrabold text-slate-900 font-heading">
+              <label className="block text-sm sm:text-base font-extrabold text-slate-900 dark:text-slate-100 font-heading">
                 Pilih Teman yang Akan Dinilai *
               </label>
               <p className="text-xs text-slate-400">
@@ -311,7 +346,7 @@ export const StudentAssessmentForm: React.FC<StudentAssessmentFormProps> = ({
             disabled={!!existingRecord}
             onChange={(e) => setSelectedTargetId(e.target.value)}
             required
-            className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-800 focus:outline-hidden focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+            className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold text-slate-800 dark:text-slate-100 focus:outline-hidden focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
           >
             <option value="">-- Pilih Teman Sekelas ({task.kelas}) --</option>
             {classmates.map((c) => {
@@ -321,7 +356,7 @@ export const StudentAssessmentForm: React.FC<StudentAssessmentFormProps> = ({
                   key={c.uid}
                   value={c.uid}
                   disabled={alreadyDone}
-                  className={alreadyDone ? 'text-slate-400' : 'text-slate-900'}
+                  className={alreadyDone ? 'text-slate-400' : 'text-slate-900 dark:text-slate-100'}
                 >
                   {c.nama} {c.nomorAbsen ? `(No Absen ${c.nomorAbsen})` : ''}
                   {alreadyDone ? ' — [Sudah Anda Nilai]' : ''}
@@ -331,11 +366,11 @@ export const StudentAssessmentForm: React.FC<StudentAssessmentFormProps> = ({
           </select>
 
           {selectedTargetId && (
-            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-2 text-xs text-slate-600">
-              <UserCheck className="w-4 h-4 text-blue-600 shrink-0" />
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-700/60 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+              <UserCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
               <span>
                 Kamu sedang menilai:{' '}
-                <strong className="text-slate-900">
+                <strong className="text-slate-900 dark:text-white">
                   {classmates.find((c) => c.uid === selectedTargetId)?.nama}
                 </strong>
               </span>
@@ -344,14 +379,14 @@ export const StudentAssessmentForm: React.FC<StudentAssessmentFormProps> = ({
         </div>
 
         {/* Step 2: Movement Indicators & Big Touch-Friendly Buttons */}
-        <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-xs space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-900 flex items-center justify-center font-bold text-sm">
+              <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-900 dark:bg-emerald-950/80 dark:text-emerald-300 flex items-center justify-center font-bold text-sm">
                 2
               </div>
               <div>
-                <h3 className="text-sm sm:text-base font-extrabold text-slate-900 font-heading">
+                <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-slate-100 font-heading">
                   Indikator Gerak & Penilaian Skala (1 - 4) *
                 </h3>
                 <p className="text-xs text-slate-400">
@@ -365,7 +400,7 @@ export const StudentAssessmentForm: React.FC<StudentAssessmentFormProps> = ({
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                 Rata-Rata
               </span>
-              <span className="text-lg sm:text-xl font-black text-blue-600 font-heading">
+              <span className="text-lg sm:text-xl font-black text-emerald-600 dark:text-emerald-400 font-heading">
                 {liveAverage} <span className="text-xs text-slate-400">/ 4</span>
               </span>
             </div>
@@ -390,14 +425,14 @@ export const StudentAssessmentForm: React.FC<StudentAssessmentFormProps> = ({
               return (
                 <div
                   key={ind.id}
-                  className="p-3.5 sm:p-5 rounded-2xl bg-slate-50/80 border border-slate-200/90 space-y-3"
+                  className="p-3.5 sm:p-5 rounded-2xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/90 dark:border-slate-700/60 space-y-3"
                 >
                   <div className="flex items-start gap-2.5 sm:gap-3">
-                    <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-900 font-black text-xs flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="w-6 h-6 rounded-lg bg-emerald-100 dark:bg-emerald-950/80 text-emerald-900 dark:text-emerald-300 font-black text-xs flex items-center justify-center shrink-0 mt-0.5">
                       {idx + 1}
                     </span>
                     <div className="space-y-0.5">
-                      <p className="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
+                      <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 leading-snug">
                         {ind.indikator}
                       </p>
                       <p className="text-[11px] text-slate-400">Materi: {ind.materi}</p>
@@ -416,13 +451,13 @@ export const StudentAssessmentForm: React.FC<StudentAssessmentFormProps> = ({
                           className={`py-3 sm:py-3.5 rounded-xl sm:rounded-2xl font-black text-base sm:text-lg flex flex-col items-center justify-center transition-all cursor-pointer min-h-[48px] ${
                             isSelected
                               ? num === 4
-                                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 scale-102 ring-2 ring-indigo-600 ring-offset-2'
+                                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30 scale-102 ring-2 ring-emerald-600 ring-offset-2'
                                 : num === 3
-                                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 scale-102 ring-2 ring-blue-600 ring-offset-2'
+                                ? 'bg-teal-600 text-white shadow-md shadow-teal-600/30 scale-102 ring-2 ring-teal-600 ring-offset-2'
                                 : num === 2
                                 ? 'bg-amber-500 text-white shadow-md shadow-amber-500/30 scale-102 ring-2 ring-amber-500 ring-offset-2'
                                 : 'bg-rose-500 text-white shadow-md shadow-rose-500/30 scale-102 ring-2 ring-rose-500 ring-offset-2'
-                              : 'bg-white text-slate-700 border border-slate-200 hover:border-slate-300 hover:bg-slate-100/60'
+                              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-slate-300 hover:bg-slate-100/60 dark:hover:bg-slate-700/60'
                           }`}
                         >
                           <span>{num}</span>
@@ -440,9 +475,9 @@ export const StudentAssessmentForm: React.FC<StudentAssessmentFormProps> = ({
 
                   {/* Active Description Feedback */}
                   {desc && (
-                    <div className="p-2.5 bg-white rounded-xl border border-slate-200 text-xs flex items-center justify-between text-slate-700 animate-in fade-in">
-                      <span className="font-semibold text-slate-500">Keterangan:</span>
-                      <span className="font-bold text-slate-900">{desc}</span>
+                    <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-xs flex items-center justify-between text-slate-700 dark:text-slate-300 animate-in fade-in">
+                      <span className="font-semibold text-slate-500 dark:text-slate-400">Keterangan:</span>
+                      <span className="font-bold text-slate-900 dark:text-white">{desc}</span>
                     </div>
                   )}
                 </div>
@@ -452,13 +487,13 @@ export const StudentAssessmentForm: React.FC<StudentAssessmentFormProps> = ({
         </div>
 
         {/* Step 3: Masukan / Feedback */}
-        <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-xs space-y-3">
+        <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-3">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-900 flex items-center justify-center font-bold text-sm">
+            <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-900 dark:bg-emerald-950/80 dark:text-emerald-300 flex items-center justify-center font-bold text-sm">
               3
             </div>
             <div>
-              <label className="block text-sm sm:text-base font-extrabold text-slate-900 font-heading">
+              <label className="block text-sm sm:text-base font-extrabold text-slate-900 dark:text-slate-100 font-heading">
                 Masukan / Catatan Perbaikan untuk Teman *
               </label>
               <p className="text-xs text-slate-400">
@@ -473,7 +508,7 @@ export const StudentAssessmentForm: React.FC<StudentAssessmentFormProps> = ({
             rows={4}
             required
             placeholder="Contoh: Gerakan tanganmu saat mendorong bola sudah kuat dan lurus ke depan, namun posisi awal lutut sebaiknya ditekuk sedikit lebih rendah agar dorongan lebih stabil."
-            className="w-full p-3.5 sm:p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs sm:text-sm text-slate-800 focus:outline-hidden focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 leading-relaxed"
+            className="w-full p-3.5 sm:p-4 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm text-slate-800 dark:text-slate-100 focus:outline-hidden focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 leading-relaxed"
           />
 
           <div className="flex items-center gap-2 text-[11px] text-slate-400 italic">
@@ -482,16 +517,16 @@ export const StudentAssessmentForm: React.FC<StudentAssessmentFormProps> = ({
           </div>
         </div>
 
-        {/* Step 4: Video / Photo Upload */}
+        {/* Step 4: Video / Photo Upload (Ultra Cepat) */}
         {(task.bolehUploadVideo || task.bolehUploadFoto) && (
-          <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-xs space-y-4">
+          <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-900 flex items-center justify-center font-bold text-sm">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-900 dark:bg-emerald-950/80 dark:text-emerald-300 flex items-center justify-center font-bold text-sm">
                   4
                 </div>
                 <div>
-                  <h3 className="text-sm sm:text-base font-extrabold text-slate-900 font-heading">
+                  <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-slate-100 font-heading">
                     Unggah Bukti Gerakan ({task.wajibBukti ? 'Wajib' : 'Opsional'})
                   </h3>
                   <p className="text-xs text-slate-400">
@@ -502,12 +537,12 @@ export const StudentAssessmentForm: React.FC<StudentAssessmentFormProps> = ({
 
               <div className="flex items-center gap-1.5">
                 {task.bolehUploadVideo && (
-                  <span className="p-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-bold flex items-center gap-1">
+                  <span className="p-1.5 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded-lg text-xs font-bold flex items-center gap-1">
                     <Video className="w-3.5 h-3.5" /> Video
                   </span>
                 )}
                 {task.bolehUploadFoto && (
-                  <span className="p-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-bold flex items-center gap-1">
+                  <span className="p-1.5 bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 rounded-lg text-xs font-bold flex items-center gap-1">
                     <Camera className="w-3.5 h-3.5" /> Foto
                   </span>
                 )}
@@ -516,16 +551,19 @@ export const StudentAssessmentForm: React.FC<StudentAssessmentFormProps> = ({
 
             {/* Upload Area / Preview */}
             {!evidenceUrl ? (
-              <label className="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl sm:rounded-3xl p-6 sm:p-8 flex flex-col items-center justify-center gap-2 cursor-pointer bg-slate-50/50 hover:bg-blue-50/20 transition-all text-center">
-                <div className="w-12 h-12 rounded-2xl bg-white shadow-xs border border-slate-200 flex items-center justify-center text-slate-500">
-                  <UploadCloud className="w-6 h-6 text-blue-600" />
+              <label className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 rounded-2xl sm:rounded-3xl p-6 sm:p-8 flex flex-col items-center justify-center gap-2 cursor-pointer bg-slate-50/50 dark:bg-slate-800/30 hover:bg-emerald-50/20 dark:hover:bg-emerald-950/20 transition-all text-center">
+                <div className="w-12 h-12 rounded-2xl bg-white dark:bg-slate-800 shadow-xs border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500">
+                  <UploadCloud className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
                 </div>
-                <p className="text-xs sm:text-sm font-bold text-slate-800 mt-1">
-                  Klik untuk memilih file foto atau video dari perangkat
+                <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 mt-1">
+                  Klik untuk memilih file video (hingga 1 menit) atau foto dari HP / Laptop
                 </p>
                 <p className="text-[11px] text-slate-400">
-                  Mendukung format MP4, WEBM, JPG, PNG (Maks 25MB)
+                  Mendukung format MP4, WEBM, MOV, JPG, PNG (Maks 150MB)
                 </p>
+                <div className="mt-1 px-3 py-1 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 rounded-full text-[11px] font-semibold">
+                  ⚡ Penyimpanan Cepat: Video langsung diproses instan tanpa membuat HP hang
+                </div>
                 <input
                   type="file"
                   accept="image/*,video/*"
@@ -535,14 +573,19 @@ export const StudentAssessmentForm: React.FC<StudentAssessmentFormProps> = ({
               </label>
             ) : (
               <div className="space-y-3">
-                <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-900 max-h-72 flex items-center justify-center relative">
+                <div className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-950 max-h-72 flex items-center justify-center relative">
                   {evidenceType === 'video' ? (
-                    <video src={evidenceUrl} controls className="w-full max-h-72 object-contain" />
+                    <video
+                      src={evidenceUrl}
+                      controls
+                      playsInline
+                      className="w-full max-h-72 object-contain"
+                    />
                   ) : (
                     <img
                       src={evidenceUrl}
                       alt="Preview bukti"
-                      className="w-full max-h-72 object-contain bg-slate-100"
+                      className="w-full max-h-72 object-contain bg-slate-100 dark:bg-slate-800"
                     />
                   )}
                   <button
@@ -555,15 +598,48 @@ export const StudentAssessmentForm: React.FC<StudentAssessmentFormProps> = ({
                   </button>
                 </div>
 
-                <div className="flex items-center justify-between text-xs text-slate-500">
-                  <span>Bukti {evidenceType === 'video' ? 'Video' : 'Foto'} siap dilampirkan</span>
+                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-700 dark:text-slate-300">
+                      Bukti {evidenceType === 'video' ? 'Video' : 'Foto'} siap disimpan
+                    </span>
+                    {fileInfo && (
+                      <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 rounded-md font-bold text-[10px]">
+                        {fileInfo.sizeMB}
+                      </span>
+                    )}
+                  </div>
                   <button
                     type="button"
                     onClick={handleRemoveMedia}
-                    className="text-rose-600 font-bold hover:underline cursor-pointer"
+                    className="text-rose-600 dark:text-rose-400 font-bold hover:underline cursor-pointer"
                   >
                     Ganti File
                   </button>
+                </div>
+
+                {/* PJOK Pro Tip */}
+                <div className="p-3 bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800/60 rounded-xl text-[11px] text-emerald-900 dark:text-emerald-200 flex items-start gap-2">
+                  <span className="text-base">💡</span>
+                  <span>
+                    <strong>Tips Praktik PJOK:</strong> Cukup rekam 15 - 30 detik pada gerakan inti (misal: awalan lari, tolakan kaki, dan pendaratan) agar penilaian tersimpan lebih cepat dan hemat kuota.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Upload Progress Bar */}
+            {uploading && (
+              <div className="space-y-1.5 p-3 bg-emerald-50 dark:bg-emerald-950/60 rounded-xl border border-emerald-200 dark:border-emerald-800">
+                <div className="flex items-center justify-between text-xs font-bold text-emerald-900 dark:text-emerald-200">
+                  <span>Mengunggah Bukti Gerakan...</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <div className="w-full h-2 bg-emerald-200 dark:bg-emerald-900 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-600 transition-all duration-300 rounded-full"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
                 </div>
               </div>
             )}
@@ -572,7 +648,7 @@ export const StudentAssessmentForm: React.FC<StudentAssessmentFormProps> = ({
 
         {/* Error Notification */}
         {errorMessage && (
-          <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3 text-rose-800 text-xs sm:text-sm">
+          <div className="p-4 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 rounded-2xl flex items-start gap-3 text-rose-800 dark:text-rose-200 text-xs sm:text-sm">
             <AlertCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
             <span>{errorMessage}</span>
           </div>
@@ -583,12 +659,12 @@ export const StudentAssessmentForm: React.FC<StudentAssessmentFormProps> = ({
           <button
             type="submit"
             disabled={submitting || uploading}
-            className="w-full min-h-[48px] py-3.5 sm:py-4 px-6 rounded-2xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-black text-sm sm:text-base shadow-lg shadow-blue-600/25 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full min-h-[48px] py-3.5 sm:py-4 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-black text-sm sm:text-base shadow-lg shadow-emerald-600/25 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {submitting ? (
-              <span>Menyimpan Penilaian...</span>
-            ) : uploading ? (
-              <span>Mengunggah Berkas Bukti...</span>
+            {uploading ? (
+              <span>Mengunggah Video ({uploadProgress}%)...</span>
+            ) : submitting ? (
+              <span>Menyimpan Penilaian Instan...</span>
             ) : (
               <>
                 <CheckCircle2 className="w-5 h-5" />
@@ -601,29 +677,29 @@ export const StudentAssessmentForm: React.FC<StudentAssessmentFormProps> = ({
 
       {/* Success Modal */}
       {showSuccessModal && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 text-center shadow-2xl animate-in zoom-in-95">
-            <div className="w-16 h-16 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mx-auto mb-4">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 text-center shadow-2xl border border-slate-200 dark:border-slate-800 animate-in zoom-in-95">
+            <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto mb-4">
               <CheckCircle2 className="w-10 h-10" />
             </div>
 
-            <h3 className="text-xl font-black text-slate-900 font-heading">
+            <h3 className="text-xl font-black text-slate-900 dark:text-slate-100 font-heading">
               Penilaian Berhasil Dikirim!
             </h3>
 
-            <p className="text-xs sm:text-sm text-slate-500 mt-2">
-              Terima kasih! Penilaian dan masukanmu telah berhasil disimpan ke sistem dan dapat dipantau oleh Guru PJOK.
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-2">
+              Penilaian, masukan, dan bukti gerakan telah tersimpan secara instan. Guru PJOK dapat langsung memantau hasil pengamatanmu.
             </p>
 
-            <div className="mt-4 p-3 bg-slate-50 rounded-2xl border border-slate-100 text-xs text-slate-600">
-              Rata-rata skor yang kamu berikan: <strong className="text-blue-700">{liveAverage} / 4</strong> (Nilai: {live100})
+            <div className="mt-4 p-3 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300">
+              Rata-rata skor yang kamu berikan: <strong className="text-emerald-600 dark:text-emerald-400 font-extrabold">{liveAverage} / 4</strong> (Nilai: {live100})
             </div>
 
             <div className="mt-6 flex flex-col gap-2">
               <button
                 type="button"
                 onClick={onSuccess}
-                className="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md transition-colors cursor-pointer"
+                className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md transition-colors cursor-pointer"
               >
                 Kembali ke Beranda Tugas
               </button>

@@ -92,7 +92,10 @@ export interface AssessmentRecord {
   targetClass: string;
   evidenceType: 'video' | 'foto' | 'none';
   evidenceUrl?: string | null;
+  thumbnailUrl?: string | null;
   evidencePath?: string;
+  videoFileSize?: string;
+  videoDuration?: number;
   scores: IndicatorScore[];
   feedback: string;
   totalScore?: number;
@@ -122,4 +125,32 @@ export interface IndicatorAnalytics {
   rataRata: number;
   jumlahPenilai: number;
   distribusi: { [key: number]: number };
+}
+
+export interface QuizItem {
+  id: string;
+  judul: string;
+  materi: string;
+  kelas: string; // "Semua Kelas" or specific e.g. "XI 7"
+  linkUrl: string; // URL ke kuis (Google Form, Quizizz, Wordwall, CBT, dll)
+  status: 'buka' | 'kunci'; // status kunci akses: 'buka' (aktif) | 'kunci' (terkunci oleh guru)
+  kodeKunci?: string; // PIN atau Kunci akses kuis (opsional, jika guru ingin membagikan di kelas)
+  tanggalMulai?: string; // Tanggal & waktu mulai kuis
+  batasWaktu?: string; // Batas waktu selesai kuis
+  durasiMenit?: number; // Durasi pengerjaan dalam menit
+  instruksi?: string; // Petunjuk guru
+  createdBy?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface QuizSubmission {
+  id: string;
+  quizId: string;
+  studentId: string;
+  studentName: string;
+  studentClass: string;
+  studentNoAbsen?: string;
+  submittedAt: string;
+  status: 'selesai';
 }

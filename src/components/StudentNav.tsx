@@ -1,7 +1,7 @@
 import React from 'react';
-import { Home, ClipboardCheck, History, User } from 'lucide-react';
+import { Home, ClipboardCheck, History, User, HelpCircle } from 'lucide-react';
 
-export type StudentTab = 'home' | 'tasks' | 'history' | 'profile';
+export type StudentTab = 'home' | 'tasks' | 'quizzes' | 'history' | 'profile';
 
 interface StudentNavProps {
   currentTab: StudentTab;
@@ -22,6 +22,7 @@ export const StudentNav: React.FC<StudentNavProps> = ({
   }> = [
     { id: 'home', label: 'Beranda', icon: Home },
     { id: 'tasks', label: 'Tugas', icon: ClipboardCheck, badge: pendingTaskCount },
+    { id: 'quizzes', label: 'Kuis', icon: HelpCircle },
     { id: 'history', label: 'Riwayat', icon: History },
     { id: 'profile', label: 'Profil', icon: User }
   ];
@@ -63,7 +64,7 @@ export const StudentNav: React.FC<StudentNavProps> = ({
 
       {/* Mobile Bottom Fixed Bar for easy thumb navigation */}
       <nav className="sm:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200/90 dark:border-slate-800 z-40 pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-4px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.3)]">
-        <div className="grid grid-cols-4 h-16">
+        <div className="grid grid-cols-5 h-16">
           {tabs.map((t) => {
             const Icon = t.icon;
             const isActive = currentTab === t.id;

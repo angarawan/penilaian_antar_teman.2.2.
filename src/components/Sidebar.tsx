@@ -1,6 +1,5 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
-import { ThemeToggle } from './ThemeToggle';
 import {
   LayoutDashboard,
   Users,
@@ -13,7 +12,7 @@ import {
   LogOut,
   X,
   ClipboardList,
-  ShieldCheck
+  HelpCircle
 } from 'lucide-react';
 
 export type TeacherMenu =
@@ -22,6 +21,7 @@ export type TeacherMenu =
   | 'classes'
   | 'indicators'
   | 'tasks'
+  | 'quizzes'
   | 'results'
   | 'recap'
   | 'analytics'
@@ -40,7 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpen,
   onClose
 }) => {
-  const { currentUser, logout } = useAuth();
+  const { logout } = useAuth();
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -48,6 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'classes', label: 'Data Kelas', icon: School },
     { id: 'indicators', label: 'Indikator Penilaian', icon: CheckSquare },
     { id: 'tasks', label: 'Tugas Penilaian', icon: ClipboardList },
+    { id: 'quizzes', label: 'Kuis PJOK (Link & Kunci)', icon: HelpCircle },
     { id: 'results', label: 'Hasil Penilaian', icon: Award },
     { id: 'recap', label: 'Rekap Nilai', icon: FileSpreadsheet },
     { id: 'analytics', label: 'Analisis & Grafik', icon: BarChart3 },
@@ -122,30 +123,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             })}
           </div>
 
-          {/* Bottom Section: Info Kurikulum + AKUN & KELUAR PALING BAWAH (Sesuai Permintaan) */}
-          <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
-            {/* User Account Card at Bottom of Sidebar */}
-            {currentUser && (
-              <div className="p-3 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
-                    {currentUser.nama.charAt(0)}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">
-                      {currentUser.nama}
-                    </p>
-                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
-                      <ShieldCheck className="w-3 h-3" /> Guru PJOK
-                    </span>
-                  </div>
-                </div>
-
-                <ThemeToggle className="shrink-0" />
-              </div>
-            )}
-
-            {/* Tombol Keluar Akun di Paling Bawah */}
+          {/* Bottom Section: Tombol Keluar di Paling Bawah */}
+          <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-800">
             <button
               type="button"
               onClick={handleLogout}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { DatabaseService, subscribeToDataChanges } from '../../services/db';
 import { AssessmentRecord, ClassItem, AssessmentTask } from '../../types';
+import { EvidenceViewer } from '../../components/EvidenceViewer';
 import {
   Award,
   Search,
@@ -306,26 +307,25 @@ export const AssessmentResults: React.FC<AssessmentResultsProps> = ({
               </div>
 
               {/* Bukti Foto / Video (Section 21) */}
-              {detailRecord.evidenceUrl && (
+              {(detailRecord.evidenceUrl || detailRecord.thumbnailUrl) && (
                 <div>
-                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                    BUKTI GERAKAN YANG DINILAI ({detailRecord.evidenceType.toUpperCase()})
-                  </h4>
-                  <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-900 flex items-center justify-center max-h-72">
-                    {detailRecord.evidenceType === 'video' ? (
-                      <video
-                        src={detailRecord.evidenceUrl}
-                        controls
-                        className="w-full max-h-72 object-contain"
-                      />
-                    ) : (
-                      <img
-                        src={detailRecord.evidenceUrl}
-                        alt="Bukti gerakan"
-                        referrerPolicy="no-referrer"
-                        className="w-full max-h-72 object-contain bg-slate-100"
-                      />
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                      BUKTI GERAKAN YANG DINILAI ({detailRecord.evidenceType?.toUpperCase() || 'VIDEO'})
+                    </h4>
+                    {detailRecord.videoFileSize && (
+                      <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md">
+                        Ukuran: {detailRecord.videoFileSize}
+                      </span>
                     )}
+                  </div>
+                  <div className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-950 flex items-center justify-center max-h-72">
+                    <EvidenceViewer
+                      evidenceUrl={detailRecord.evidenceUrl}
+                      thumbnailUrl={detailRecord.thumbnailUrl}
+                      evidenceType={detailRecord.evidenceType}
+                      className="w-full max-h-72 object-contain"
+                    />
                   </div>
                 </div>
               )}
