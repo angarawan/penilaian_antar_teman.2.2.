@@ -10,6 +10,7 @@ interface AppLogoProps {
   showText?: boolean;
   textSize?: 'sm' | 'md' | 'lg';
   whiteText?: boolean;
+  extraSubtitle?: React.ReactNode;
 }
 
 export const AppLogo: React.FC<AppLogoProps> = ({
@@ -17,8 +18,10 @@ export const AppLogo: React.FC<AppLogoProps> = ({
   size = 'md',
   showText = false,
   textSize = 'md',
-  whiteText = false
+  whiteText = false,
+  extraSubtitle
 }) => {
+
   const [config, setConfig] = useState<AppConfig>(INITIAL_APP_CONFIG);
 
   useEffect(() => {
@@ -70,8 +73,8 @@ export const AppLogo: React.FC<AppLogoProps> = ({
       <div
         className={`${sizeClasses} overflow-hidden shrink-0 flex items-center justify-center font-bold transition-transform shadow-md ${
           config.logoUrl
-            ? 'bg-white border border-slate-200 shadow-slate-200/60 p-1'
-            : 'bg-gradient-to-tr from-indigo-600 via-indigo-700 to-blue-600 text-white shadow-indigo-600/25'
+            ? 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-slate-200/60 dark:shadow-none p-1'
+            : 'bg-gradient-to-tr from-emerald-600 via-teal-600 to-emerald-700 text-white shadow-emerald-600/25'
         }`}
       >
         {config.logoUrl ? (
@@ -94,24 +97,25 @@ export const AppLogo: React.FC<AppLogoProps> = ({
         <div className="min-w-0">
           <h1
             className={`font-black tracking-tight leading-tight font-heading truncate ${
-              whiteText ? 'text-white' : 'text-slate-900'
+              whiteText ? 'text-white' : 'text-slate-900 dark:text-white'
             } ${
               textSize === 'sm'
-                ? 'text-sm sm:text-base'
+                ? 'text-xs sm:text-sm md:text-base'
                 : textSize === 'lg'
-                ? 'text-lg sm:text-2xl'
-                : 'text-base sm:text-lg md:text-xl'
+                ? 'text-base sm:text-xl md:text-2xl'
+                : 'text-xs sm:text-base md:text-lg'
             }`}
           >
             {config.appName || 'PENILAIAN ANTAR TEMAN PJOK'}
           </h1>
           <p
-            className={`text-xs truncate font-medium ${
-              whiteText ? 'text-indigo-200' : 'text-indigo-600'
+            className={`text-[10px] sm:text-xs truncate font-semibold ${
+              whiteText ? 'text-emerald-200' : 'text-emerald-700 dark:text-emerald-400'
             }`}
           >
-            {config.motto || 'Sportif, Jujur, dan Menghargai Gerak Teman'}
+            {config.schoolName ? `${config.schoolName} — ${config.motto || 'Sportif, Jujur, dan Menghargai Gerak Teman'}` : (config.motto || 'Sportif, Jujur, dan Menghargai Gerak Teman')}
           </p>
+          {extraSubtitle}
         </div>
       )}
     </div>

@@ -33,6 +33,7 @@ import {
 export const SettingsPage: React.FC = () => {
   const { currentUser, setCurrentUser } = useAuth();
   const [resetting, setResetting] = useState(false);
+  const [syncingToCloud, setSyncingToCloud] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
   const [savingTeacher, setSavingTeacher] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -88,25 +89,69 @@ export const SettingsPage: React.FC = () => {
     setTimeout(() => setMessage(null), 3500);
   };
 
-  // Handle Logo Upload via File
+  // Handle Logo Upload via File dengan kompresi Canvas agar instan tersinkron ke cloud (< 50KB)
   const handleLogoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Ukuran file logo maksimal 2MB.');
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Ukuran berkas logo maksimal 5MB.');
       return;
     }
 
     const reader = new FileReader();
     reader.onload = (evt) => {
-      const result = evt.target?.result as string;
-      if (result) {
-        setLogoUrl(result);
-        showToast('Logo berhasil dimuat. Klik "Simpan Pengaturan Logo" untuk menerapkan.');
-      }
+      const rawResult = evt.target?.result as string;
+      if (!rawResult) return;
+
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxDim = 256;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxDim) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          }
+        } else {
+          if (height > maxDim) {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/png');
+          setLogoUrl(compressed);
+          showToast('Logo berhasil dioptimalkan. Klik "Simpan Logo & Identitas" untuk menerapkan ke semua perangkat.');
+        } else {
+          setLogoUrl(rawResult);
+        }
+      };
+      img.src = rawResult;
     };
     reader.readAsDataURL(file);
+  };
+
+  // Sinkronkan seluruh data lokal ke Firebase Cloud Firestore
+  const handleSyncToCloud = async () => {
+    setSyncingToCloud(true);
+    try {
+      const res = await DatabaseService.syncAllLocalDataToCloud();
+      showToast(res.message);
+      await loadData();
+    } catch (e: any) {
+      showToast('Gagal sinkronisasi: ' + (e?.message || 'Terjadi gangguan jaringan'));
+    } finally {
+      setSyncingToCloud(false);
+    }
   };
 
   // Save App Config
@@ -125,7 +170,7 @@ export const SettingsPage: React.FC = () => {
     await DatabaseService.saveAppConfig(updated);
     setConfig(updated);
     setSavingConfig(false);
-    showToast('Logo dan identitas aplikasi berhasil disimpan!');
+    showToast('Logo dan identitas aplikasi berhasil disimpan & disinkronkan ke Cloud!');
   };
 
   // Reset App Config to Defaults
@@ -500,51 +545,72 @@ export const SettingsPage: React.FC = () => {
         </form>
       </div>
 
-      {/* 3. Status Database & Reset Data */}
+      {/* 3. Status Database & Sinkronisasi Cloud */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Status Koneksi Firebase */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
-              <Server className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-bold text-slate-900 text-sm font-heading">
-                Status Penyimpanan Data (Firebase Firestore)
-              </h3>
-              <p className="text-xs text-slate-400">
-                Arsitektur database multi-role & otentikasi
-              </p>
-            </div>
-          </div>
+        {/* Status Koneksi & Sinkronisasi Firebase Cloud */}
+        <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <Server className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm font-heading">
+                    Sinkronisasi Multi-Perangkat (Laptop & HP)
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Firebase Cloud Firestore Database
+                  </p>
+                </div>
+              </div>
 
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/70 space-y-3">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-600">Mode Penyimpanan:</span>
-              <span className="font-bold text-blue-800 bg-blue-100 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+              <span className="font-bold text-blue-800 bg-blue-100 px-2.5 py-1 rounded-full text-xs flex items-center gap-1.5">
                 <CheckCircle className="w-3.5 h-3.5 text-blue-600" />
-                {isFbConnected ? 'Firebase Cloud Firestore' : 'Hybrid Local Storage (Auto-Sync)'}
+                Cloud Aktif
               </span>
             </div>
 
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-600">Keamanan Role (RBAC):</span>
-              <span className="font-bold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full">
-                Guru (Admin) & Murid (Restricted)
-              </span>
+            <div className="mt-4 p-4 rounded-2xl bg-slate-50 border border-slate-200/70 space-y-2.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-600">Penyimpanan Terpusat:</span>
+                <span className="font-bold text-slate-800">
+                  Google Cloud Firestore
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-600">Sinkronisasi Real-Time:</span>
+                <span className="font-semibold text-emerald-600 flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Laptop, Tablet & HP Terhubung
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-600">Data Yang Disinkronkan:</span>
+                <span className="font-medium text-slate-700">
+                  Logo, Nama Sekolah, Kelas, Siswa, & Tugas
+                </span>
+              </div>
             </div>
 
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-600">Format Penilaian:</span>
-              <span className="font-semibold text-slate-800">
-                Skala Likert 1–4 & Konversi Otomatis 100
-              </span>
-            </div>
+            <p className="text-xs text-slate-500 leading-relaxed mt-3">
+              Perubahan logo, nama sekolah, kelas, maupun daftar siswa otomatis tersimpan di cloud. Jika membuka di HP baru, data akan langsung dimuat dari cloud tanpa kembali ke data awal.
+            </p>
           </div>
 
-          <p className="text-xs text-slate-500 leading-relaxed">
-            Aplikasi dirancang dengan arsitektur hybrid yang siap digunakan langsung di kelas tanpa hambatan jaringan, serta terintegrasi dengan Firebase Cloud untuk sinkronisasi antar perangkat (HP & Laptop).
-          </p>
+          <div className="pt-4 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={handleSyncToCloud}
+              disabled={syncingToCloud}
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/20 transition-all cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${syncingToCloud ? 'animate-spin' : ''}`} />
+              <span>{syncingToCloud ? 'Menyinkronkan ke Cloud...' : 'Sinkronkan Semua Data ke Cloud Sekarang'}</span>
+            </button>
+          </div>
         </div>
 
         {/* Reset & Pemeliharaan Data */}

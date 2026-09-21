@@ -94,9 +94,26 @@
         "updatedAt": { "type": "string", "description": "Waktu perbaikan penilaian." }
       },
       "required": ["id", "taskId", "assessorId", "targetId", "scores", "averageScore", "finalScore100", "feedback"]
+    },
+    "AppConfig": {
+      "title": "AppConfig",
+      "description": "Pengaturan identitas aplikasi (nama sekolah, logo, motto, dsb.).",
+      "type": "object",
+      "properties": {
+        "appName": { "type": "string" },
+        "schoolName": { "type": "string" },
+        "motto": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "logoIconPreset": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
     }
   },
   "firestore": {
+    "/settings/{docId}": {
+      "schema": { "$ref": "#/entities/AppConfig" },
+      "description": "Pengaturan aplikasi global seperti nama sekolah, logo, dan identitas PJOK."
+    },
     "/pengguna/{userId}": {
       "schema": { "$ref": "#/entities/UserProfile" },
       "description": "Koleksi data pengguna sistem (Guru dan Murid) yang menjadi rujukan peran ('guru' vs 'murid') dan hak akses."

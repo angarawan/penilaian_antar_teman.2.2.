@@ -91,12 +91,28 @@ export const DatabaseService = {
       try {
         const snapPengguna = await getDocs(collection(db, 'pengguna'));
         if (!snapPengguna.empty) {
-          return snapPengguna.docs.map((d) => d.data() as UserProfile);
+          const cloudUsers = snapPengguna.docs.map((d) => d.data() as UserProfile);
+          try {
+            localStorage.setItem(LS_USERS, JSON.stringify(cloudUsers));
+          } catch {}
+          return cloudUsers;
         }
+
         const snap = await getDocs(collection(db, 'users'));
         if (!snap.empty) {
-          return snap.docs.map((d) => d.data() as UserProfile);
+          const cloudUsers = snap.docs.map((d) => d.data() as UserProfile);
+          try {
+            localStorage.setItem(LS_USERS, JSON.stringify(cloudUsers));
+          } catch {}
+          return cloudUsers;
         }
+
+        // Jika Firestore masih kosong, unggah data pengguna lokal/awal ke cloud
+        const localUsers = getStored<UserProfile>(LS_USERS, INITIAL_USERS);
+        for (const u of localUsers) {
+          await setDoc(doc(db, 'pengguna', u.uid), u, { merge: true });
+        }
+        return localUsers;
       } catch (err) {
         console.warn('Firestore getUsers failed, falling back to local:', err);
       }
@@ -166,8 +182,19 @@ export const DatabaseService = {
       try {
         const snap = await getDocs(collection(db, 'classes'));
         if (!snap.empty) {
-          return snap.docs.map((d) => d.data() as ClassItem);
+          const cloudClasses = snap.docs.map((d) => d.data() as ClassItem);
+          try {
+            localStorage.setItem(LS_CLASSES, JSON.stringify(cloudClasses));
+          } catch {}
+          return cloudClasses;
         }
+
+        // Jika Firestore kosong, seed data kelas ke cloud
+        const localClasses = getStored<ClassItem>(LS_CLASSES, INITIAL_CLASSES);
+        for (const c of localClasses) {
+          await setDoc(doc(db, 'classes', c.id), c, { merge: true });
+        }
+        return localClasses;
       } catch (err) {
         console.warn('Firestore getClasses failed:', err);
       }
@@ -212,10 +239,21 @@ export const DatabaseService = {
       try {
         const snap = await getDocs(collection(db, 'indicators'));
         if (!snap.empty) {
-          return snap.docs
+          const cloudIndicators = snap.docs
             .map((d) => d.data() as IndicatorItem)
             .sort((a, b) => a.urutan - b.urutan);
+          try {
+            localStorage.setItem(LS_INDICATORS, JSON.stringify(cloudIndicators));
+          } catch {}
+          return cloudIndicators;
         }
+
+        // Jika Firestore kosong, seed data indikator ke cloud
+        const localIndicators = getStored<IndicatorItem>(LS_INDICATORS, INITIAL_INDICATORS);
+        for (const ind of localIndicators) {
+          await setDoc(doc(db, 'indicators', ind.id), ind, { merge: true });
+        }
+        return localIndicators.sort((a, b) => a.urutan - b.urutan);
       } catch (err) {
         console.warn('Firestore getIndicators failed:', err);
       }
@@ -261,8 +299,19 @@ export const DatabaseService = {
       try {
         const snap = await getDocs(collection(db, 'tasks'));
         if (!snap.empty) {
-          return snap.docs.map((d) => d.data() as AssessmentTask);
+          const cloudTasks = snap.docs.map((d) => d.data() as AssessmentTask);
+          try {
+            localStorage.setItem(LS_TASKS, JSON.stringify(cloudTasks));
+          } catch {}
+          return cloudTasks;
         }
+
+        // Jika Firestore kosong, seed data tugas ke cloud
+        const localTasks = getStored<AssessmentTask>(LS_TASKS, INITIAL_TASKS);
+        for (const t of localTasks) {
+          await setDoc(doc(db, 'tasks', t.id), t, { merge: true });
+        }
+        return localTasks;
       } catch (err) {
         console.warn('Firestore getTasks failed:', err);
       }
@@ -321,7 +370,11 @@ export const DatabaseService = {
       try {
         const snap = await getDocs(collection(db, 'assessments'));
         if (!snap.empty) {
-          return snap.docs.map((d) => d.data() as AssessmentRecord);
+          const cloudAssessments = snap.docs.map((d) => d.data() as AssessmentRecord);
+          try {
+            localStorage.setItem(LS_ASSESSMENTS, JSON.stringify(cloudAssessments));
+          } catch {}
+          return cloudAssessments;
         }
       } catch (err) {
         console.warn('Firestore getAssessments failed:', err);
@@ -411,13 +464,29 @@ export const DatabaseService = {
     return this.uploadEvidence(file, path || 'assessments', 'upload');
   },
 
-  // --- APP CONFIG & LOGO ---
+  // --- APP CONFIG & LOGO (Sinkron Multi-Device HP & Laptop) ---
   async getAppConfig(): Promise<AppConfig> {
     if (isFirebaseConfigured() && db) {
       try {
         const snap = await getDoc(doc(db, 'settings', 'app_config'));
         if (snap.exists()) {
-          return { ...INITIAL_APP_CONFIG, ...(snap.data() as AppConfig) };
+          const cloudConfig = { ...INITIAL_APP_CONFIG, ...(snap.data() as AppConfig) };
+          try {
+            localStorage.setItem(LS_APP_CONFIG, JSON.stringify(cloudConfig));
+          } catch {}
+          return cloudConfig;
+        } else {
+          // Jika di Firestore belum ada, periksa apakah di penyimpanan lokal ada kustomisasi untuk diunggah ke cloud
+          const stored = localStorage.getItem(LS_APP_CONFIG);
+          const configToUpload = stored
+            ? { ...INITIAL_APP_CONFIG, ...JSON.parse(stored) }
+            : INITIAL_APP_CONFIG;
+          try {
+            await setDoc(doc(db, 'settings', 'app_config'), configToUpload, { merge: true });
+          } catch (e) {
+            console.warn('Gagal mengunggah konfigurasi awal ke Firestore:', e);
+          }
+          return configToUpload;
         }
       } catch (err) {
         console.warn('Firestore getAppConfig error, using local:', err);
@@ -467,6 +536,67 @@ export const DatabaseService = {
     this.resetToDefaults();
   },
 
+  /**
+   * Mengunggah seluruh data lokal (pengaturan, kelas, indikator, tugas, pengguna)
+   * ke Firestore agar tersinkronisasi 100% antar laptop dan HP.
+   */
+  async syncAllLocalDataToCloud(): Promise<{ success: boolean; message: string }> {
+    if (!isFirebaseConfigured() || !db) {
+      return {
+        success: false,
+        message: 'Koneksi Firebase Cloud belum aktif di perangkat ini.'
+      };
+    }
+
+    try {
+      // 1. Sinkronkan Pengaturan Aplikasi & Logo
+      const currentConfig = await this.getAppConfig();
+      await setDoc(doc(db, 'settings', 'app_config'), currentConfig, { merge: true });
+
+      // 2. Sinkronkan Pengguna / Murid & Guru
+      const localUsers = getStored<UserProfile>(LS_USERS, INITIAL_USERS);
+      for (const u of localUsers) {
+        await setDoc(doc(db, 'pengguna', u.uid), u, { merge: true });
+      }
+
+      // 3. Sinkronkan Kelas
+      const localClasses = getStored<ClassItem>(LS_CLASSES, INITIAL_CLASSES);
+      for (const c of localClasses) {
+        await setDoc(doc(db, 'classes', c.id), c, { merge: true });
+      }
+
+      // 4. Sinkronkan Indikator
+      const localIndicators = getStored<IndicatorItem>(LS_INDICATORS, INITIAL_INDICATORS);
+      for (const ind of localIndicators) {
+        await setDoc(doc(db, 'indicators', ind.id), ind, { merge: true });
+      }
+
+      // 5. Sinkronkan Tugas
+      const localTasks = getStored<AssessmentTask>(LS_TASKS, INITIAL_TASKS);
+      for (const t of localTasks) {
+        await setDoc(doc(db, 'tasks', t.id), t, { merge: true });
+      }
+
+      // 6. Sinkronkan Penilaian jika ada
+      const localAssessments = getStored<AssessmentRecord>(LS_ASSESSMENTS, INITIAL_ASSESSMENTS);
+      for (const a of localAssessments) {
+        await setDoc(doc(db, 'assessments', a.id), a, { merge: true });
+      }
+
+      notifySubscribers();
+      return {
+        success: true,
+        message: 'Semua data (Logo, Pengaturan, Kelas, Siswa, Indikator, & Tugas) berhasil disinkronkan ke Firebase Cloud. Sekarang laptop dan HP sinkron!'
+      };
+    } catch (error: any) {
+      console.error('Error saat sinkronisasi ke cloud:', error);
+      return {
+        success: false,
+        message: error?.message || 'Gagal menyinkronkan data ke cloud.'
+      };
+    }
+  },
+
   async seedPenggunaToFirestoreIfEmpty(): Promise<void> {
     if (!isFirebaseConfigured() || !db) return;
     try {
@@ -475,6 +605,13 @@ export const DatabaseService = {
         for (const user of INITIAL_USERS) {
           await setDoc(doc(db, 'pengguna', user.uid), user, { merge: true });
         }
+      }
+      // Pastikan app_config juga ada di Firestore
+      const snapConfig = await getDoc(doc(db, 'settings', 'app_config'));
+      if (!snapConfig.exists()) {
+        const stored = localStorage.getItem(LS_APP_CONFIG);
+        const cfg = stored ? JSON.parse(stored) : INITIAL_APP_CONFIG;
+        await setDoc(doc(db, 'settings', 'app_config'), cfg, { merge: true });
       }
     } catch (e) {
       console.warn('seedPenggunaToFirestore notice:', e);

@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
+import { ThemeToggle } from './ThemeToggle';
 import {
   LayoutDashboard,
   Users,
@@ -11,7 +12,8 @@ import {
   Settings,
   LogOut,
   X,
-  ClipboardList
+  ClipboardList,
+  ShieldCheck
 } from 'lucide-react';
 
 export type TeacherMenu =
@@ -59,55 +61,45 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
+  const handleLogout = () => {
+    if (window.confirm('Apakah Anda yakin ingin keluar dari akun?')) {
+      logout();
+    }
+  };
+
   return (
     <>
       {/* Mobile backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 lg:hidden"
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-40 lg:hidden"
           onClick={onClose}
         />
       )}
 
       {/* Sidebar container */}
       <aside
-        className={`fixed lg:sticky top-0 lg:top-20 z-40 h-screen lg:h-[calc(100vh-5rem)] w-64 bg-white border-r border-slate-200 flex flex-col justify-between transition-transform duration-300 ease-in-out shrink-0 ${
+        className={`fixed lg:sticky top-0 lg:top-20 z-40 h-screen lg:h-[calc(100vh-5rem)] w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col justify-between transition-transform duration-300 ease-in-out shrink-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
         <div className="p-4 flex flex-col h-full overflow-y-auto">
           {/* Mobile header with close button */}
-          <div className="flex items-center justify-between pb-3 mb-2 border-b border-slate-100 lg:hidden">
-            <span className="font-extrabold text-sm text-slate-800 font-heading">
+          <div className="flex items-center justify-between pb-3 mb-2 border-b border-slate-100 dark:border-slate-800 lg:hidden">
+            <span className="font-extrabold text-sm text-slate-800 dark:text-white font-heading">
               MENU GURU PJOK
             </span>
             <button
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
+              className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
-          {/* Teacher Status Card above Menu Utama */}
-          <div className="p-3 bg-linear-to-br from-indigo-50/90 to-blue-50/70 rounded-2xl border border-indigo-100/80 mb-3 hidden lg:flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
-              {currentUser?.nama ? currentUser.nama.charAt(0) : 'G'}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-slate-800 truncate">
-                {currentUser?.nama || 'Guru PJOK'}
-              </p>
-              <p className="text-[10px] text-indigo-600 font-semibold flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                Portal Guru Aktif
-              </p>
-            </div>
-          </div>
-
           {/* Navigation Links */}
           <div className="space-y-1 py-1">
-            <p className="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+            <p className="px-3 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
               Menu Utama
             </p>
             {menuItems.map((item) => {
@@ -119,31 +111,47 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onClick={() => handleItemClick(item.id)}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
                     isActive
-                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                      ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25 dark:bg-emerald-600'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400 dark:text-slate-400'}`} />
                   <span>{item.label}</span>
                 </button>
               );
             })}
           </div>
 
-          {/* Bottom Card / Info */}
-          <div className="mt-auto pt-6">
-            <div className="p-3 bg-indigo-50/70 rounded-2xl border border-indigo-100 mb-3">
-              <p className="text-xs font-bold text-indigo-950">Kurikulum Merdeka PJOK</p>
-              <p className="text-[11px] text-indigo-700 mt-0.5">
-                Model Asesmen Formatif Antar Teman (Peer Assessment)
-              </p>
-            </div>
+          {/* Bottom Section: Info Kurikulum + AKUN & KELUAR PALING BAWAH (Sesuai Permintaan) */}
+          <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+            {/* User Account Card at Bottom of Sidebar */}
+            {currentUser && (
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
+                    {currentUser.nama.charAt(0)}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">
+                      {currentUser.nama}
+                    </p>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+                      <ShieldCheck className="w-3 h-3" /> Guru PJOK
+                    </span>
+                  </div>
+                </div>
 
+                <ThemeToggle className="shrink-0" />
+              </div>
+            )}
+
+            {/* Tombol Keluar Akun di Paling Bawah */}
             <button
-              onClick={() => logout()}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+              type="button"
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center gap-2.5 px-3 py-2.5 text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/40 border border-rose-200 dark:border-rose-900/50 rounded-xl transition-all cursor-pointer shadow-xs"
             >
-              <LogOut className="w-4 h-4 text-rose-500" />
+              <LogOut className="w-4 h-4" />
               <span>Keluar Akun</span>
             </button>
           </div>
@@ -152,3 +160,4 @@ export const Sidebar: React.FC<SidebarProps> = ({
     </>
   );
 };
+

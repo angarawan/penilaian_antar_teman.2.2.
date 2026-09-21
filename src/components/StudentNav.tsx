@@ -29,7 +29,7 @@ export const StudentNav: React.FC<StudentNavProps> = ({
   return (
     <>
       {/* Top / Desktop Segmented Nav for Student */}
-      <div className="bg-white border-b border-slate-200/90 py-2.5 px-4 shadow-xs">
+      <div className="bg-white dark:bg-slate-900 border-b border-slate-200/90 dark:border-slate-800 py-2.5 px-4 shadow-xs transition-colors">
         <div className="max-w-4xl mx-auto flex items-center justify-center sm:justify-start gap-2">
           {tabs.map((t) => {
             const Icon = t.icon;
@@ -40,8 +40,8 @@ export const StudentNav: React.FC<StudentNavProps> = ({
                 onClick={() => onSelectTab(t.id)}
                 className={`relative flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
                   isActive
-                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/25'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    ? 'bg-teal-600 text-white shadow-sm shadow-teal-600/25 dark:bg-teal-600'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 <Icon className="w-4 h-4" />
@@ -49,7 +49,7 @@ export const StudentNav: React.FC<StudentNavProps> = ({
                 {t.badge && t.badge > 0 ? (
                   <span
                     className={`ml-1 px-1.5 py-0.2 text-[11px] font-bold rounded-full ${
-                      isActive ? 'bg-white text-blue-700' : 'bg-rose-500 text-white'
+                      isActive ? 'bg-white text-teal-800' : 'bg-rose-500 text-white'
                     }`}
                   >
                     {t.badge}
@@ -62,7 +62,7 @@ export const StudentNav: React.FC<StudentNavProps> = ({
       </div>
 
       {/* Mobile Bottom Fixed Bar for easy thumb navigation */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200/90 z-40 pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200/90 dark:border-slate-800 z-40 pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-4px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.3)]">
         <div className="grid grid-cols-4 h-16">
           {tabs.map((t) => {
             const Icon = t.icon;
@@ -72,13 +72,13 @@ export const StudentNav: React.FC<StudentNavProps> = ({
                 key={t.id}
                 onClick={() => onSelectTab(t.id)}
                 className={`flex flex-col items-center justify-center gap-1 transition-all relative cursor-pointer active:scale-95 ${
-                  isActive ? 'text-blue-600 font-bold' : 'text-slate-500 font-medium hover:text-slate-800'
+                  isActive ? 'text-teal-600 dark:text-teal-400 font-bold' : 'text-slate-500 dark:text-slate-400 font-medium hover:text-slate-800 dark:hover:text-slate-200'
                 }`}
               >
                 <div className="relative">
                   <div
                     className={`p-1 rounded-xl transition-all ${
-                      isActive ? 'bg-blue-50 text-blue-600' : ''
+                      isActive ? 'bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400' : ''
                     }`}
                   >
                     <Icon className="w-5 h-5" />
@@ -93,7 +93,7 @@ export const StudentNav: React.FC<StudentNavProps> = ({
                   {t.label}
                 </span>
                 {isActive && (
-                  <span className="absolute top-0 w-8 h-0.5 bg-blue-600 rounded-full" />
+                  <span className="absolute top-0 w-8 h-0.5 bg-teal-600 dark:bg-teal-400 rounded-full" />
                 )}
               </button>
             );
